@@ -4,7 +4,7 @@
 
 ## September 2025 Updates:
 In version 2.3.0 we update exisiting functions and introduce new ones. Changes include:
-  - Allows [installation of R package using `devtools::install_github()`](https://github.com/bashirhamidi/WdStar-sandbox/tree/sandbox?tab=readme-ov-file#installation)
+  - Allows [installation of R package using `remotes::install_github()`](https://github.com/alekseyenko/WdStar?tab=readme-ov-file#installation)
   - Package versioning  
   - Addition of function to to peform covariate-adjusted tests using `WdS.test()` 
   - Addition of effect-size using omega squared
@@ -56,7 +56,7 @@ packageVersion("WdStar")
 
 ## Quick Start  
 
-For detailed and complex examples please refer to [our publication repositories](https://github.com/bashirhamidi/WdStar-sandbox/tree/sandbox?tab=readme-ov-file#peer-reviewed-publications-on-the-w_d-test-family), which contain Markdown files with application datasets and code.
+For detailed and complex examples please refer to [our publication repositories](https://github.com/alekseyenko?tab=readme-ov-file#peer-reviewed-publications-on-the-w_d-test-family), which contain Markdown files with application datasets and code.
 
 
 The following is a simple example using the `mtcars` dataset to assess the effect of `gears` on `mpg`, `cyl`, and `disp` (first three variables of the dataset):   
