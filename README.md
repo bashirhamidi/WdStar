@@ -31,9 +31,10 @@ In version 2.3.0 we update exisiting functions and introduce new ones. Changes i
 
 
 ## Peer-Reviewed Publications on the $W_d^*$-test Family  
-** Preprint: Covariate-adjusted $W_d^*$ for robust distance-based multivariate analysis for omics data**  
+**Preprint: Covariate-adjusted $W_d^*$ for robust distance-based multivariate analysis for omics data**  
 - [Hamidi B, Fanning L, Wallace K, & Alekseyenko AV. *Bioinformatics.* 2026.](https://doi.org/)
-- [Code repository](https://github.com/alekseyenko/WdStar/tree/master/publications/Bioinformatics%20(2026))
+- [Code repository](https://github.com/alekseyenko/WdStar/tree/master/publications/Hamidi%20et%20al.%20Bioinformatics%20(2026))
+
 
 **$W_d^*$-test: robust distance-based multivariate analysis of variance**  
 - [Hamidi B, Wallace K, Vasu C, & Alekseyenko AV. *Microbiome.* 2019.](https://doi.org/10.1186/s40168-019-0659-9)
@@ -45,7 +46,7 @@ In version 2.3.0 we update exisiting functions and introduce new ones. Changes i
 - [Code repository](https://github.com/alekseyenko/Tw2)
 
 ## Installation  
-Source installation of `WdStar` R package is available directly from GitHub using `remotes` or `devtools` for R 3.4 or later:
+Source installation of `WdStar` R package is available directly from GitHub using `remotes` for R 3.4 or later:
 ```R
 install.packages("remotes")
 remotes::install_github("alekseyenko/WdStar", force=T)
