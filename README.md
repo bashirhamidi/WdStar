@@ -31,9 +31,9 @@ In version 2.3.0 we update exisiting functions and introduce new ones. Changes i
 
 
 ## Peer-Reviewed Publications on the $W_d^*$-test Family  
-**$aW_d^*$: preprint title**  
-- Publication authors: [preprint doi link](https://doi.org/10.1093/bioinformatics/btw524)
-- [Code repository](https://github.com/alekseyenko/WdStar/tree/master/publications/Bioinformatics%20(2025))
+** Preprint: Covariate-adjusted $W_d^*$ for robust distance-based multivariate analysis for omics data**  
+- [Hamidi B, Fanning L, Wallace K, & Alekseyenko AV. *Bioinformatics.* 2026.](https://doi.org/)
+- [Code repository](https://github.com/alekseyenko/WdStar/tree/master/publications/Bioinformatics%20(2026))
 
 **$W_d^*$-test: robust distance-based multivariate analysis of variance**  
 - [Hamidi B, Wallace K, Vasu C, & Alekseyenko AV. *Microbiome.* 2019.](https://doi.org/10.1186/s40168-019-0659-9)
