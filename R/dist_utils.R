@@ -81,6 +81,9 @@ dist.goodness.of.fit <- function(dm, adjusted_dm) {
   # sample-size scaling cancels in SS_residual / SS_total.
   ss_total <- dist.sigma2(dm)
   ss_residual <- dist.sigma2(adjusted_dm)
+  ## if ss_total == 0, the original dist matrix has no total var to explain. 
+  ## In other words, all pairwise distances are 0 and the equation would be undefined. 
+  ## This prevents NaN from being output, with _real_ keeping the results as a numeric missing value. 
   goodness.of.fit <- if (ss_total == 0) NA_real_ else 1 - (ss_residual / ss_total)
   attr(goodness.of.fit, "names") <- "goodness-of-fit coefficient of determination (R\u00B2)"
   goodness.of.fit
