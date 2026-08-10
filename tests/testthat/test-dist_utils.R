@@ -106,8 +106,8 @@ test_that("WdS.test reports goodness of fit only for adjusted tests", {
   ))
 
   expect_null(unadjusted_result$goodness.of.fit)
-  expect_named(unadjusted_result$estimate, "effect size estimator of variance, omega-squared (\u03C9\u00B2)")
-  expect_named(adjusted_result$estimate, "effect size estimator of variance, omega-squared (\u03C9\u00B2)")
+  expect_named(unadjusted_result$estimate, "effect size estimator of variance, omega-squared (omega^2)")
+  expect_named(adjusted_result$estimate, "effect size estimator of variance, omega-squared (omega^2)")
   expect_named(adjusted_result$goodness.of.fit, "goodness-of-fit coefficient of determination (R\u00B2)")
   expect_equal(unname(adjusted_result$goodness.of.fit), unname(expected_r_squared))
 })

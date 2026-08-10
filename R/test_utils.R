@@ -219,7 +219,7 @@ WdS.test <- function(dm, f, nrep=999, strata=NULL, formula=NULL, formula_data=pa
 
   # Effect size estimator of variance, omega-squared
   estimate <- (((length(levels(f))-1)*(unname(statistic)-1))/((length(levels(f))-1)*(unname(statistic) - 1) + attr(dm, "Size")))
-  attr(estimate, "names") <- "effect size estimator of variance, omega-squared (\u03C9\u00B2)"
+  attr(estimate, "names") <- "effect size estimator of variance, omega-squared (omega^2)"
 
   # Goodness-of-fit using coefficient of determination (R-squared)
   goodness.of.fit <- NULL
