@@ -112,15 +112,25 @@ test_that("WdS.test reports goodness of fit only for adjusted tests", {
   expect_equal(unname(adjusted_result$goodness.of.fit), unname(expected_r_squared))
 })
 
-test_that("dist.goodness.of.fit computes R squared for raw and adjusted distances", {
+test_that("dist.goodness.of.fit computes selected goodness-of-fit metrics", {
   adjustment <- rep(c("low", "high"), length.out = n_rows)
   adjusted_dm <- suppressMessages(a.dist(distance_matrix, formula = ~ adjustment))
   expected_r_squared <- 1 - (dist.sigma2(adjusted_dm) / dist.sigma2(distance_matrix))
+  residual_distances <- as.numeric(adjusted_dm)
+  n <- length(residual_distances)
+  rss <- sum(residual_distances^2)
+  expected_aic <- 2 * 3 - 2 * (-0.5 * n * (log(2 * pi * (rss / n)) + 1))
 
   result <- dist.goodness.of.fit(distance_matrix, adjusted_dm)
+  aic_result <- dist.goodness.of.fit(distance_matrix, adjusted_dm, metric = "aic", k = 3)
+  both_result <- dist.goodness.of.fit(distance_matrix, adjusted_dm, metric = "both", k = 3)
 
   expect_named(result, "goodness-of-fit coefficient of determination (R\u00B2)")
   expect_equal(unname(result), expected_r_squared)
+  expect_named(aic_result, "goodness-of-fit Akaike information criterion (AIC)")
+  expect_equal(unname(aic_result), expected_aic)
+  expect_equal(unname(both_result[1]), expected_r_squared)
+  expect_equal(unname(both_result[2]), expected_aic)
 })
 
 test_that("dist.goodness.of.fit validates distance matrix inputs", {
@@ -134,6 +144,37 @@ test_that("dist.goodness.of.fit validates distance matrix inputs", {
   expect_error(
     dist.goodness.of.fit(distance_matrix, as.dist(matrix(0, nrow = 3, ncol = 3))),
     "same number of observations"
+  )
+  expect_error(
+    dist.goodness.of.fit(distance_matrix, adjusted_dm, metric = "aic", k = 0),
+    "'k' must be a single positive numeric value"
+  )
+})
+
+test_that("WdS.test supports selecting AIC and both goodness-of-fit metrics", {
+  adjustment <- rep(c("low", "high"), length.out = n_rows)
+  adjusted_result_aic <- suppressMessages(WdS.test(
+    dm = distance_matrix,
+    f = factor_var,
+    nrep = 9,
+    formula = ~ adjustment,
+    fit_metric = "aic"
+  ))
+  adjusted_result_both <- suppressMessages(WdS.test(
+    dm = distance_matrix,
+    f = factor_var,
+    nrep = 9,
+    formula = ~ adjustment,
+    fit_metric = "both"
+  ))
+
+  expect_named(adjusted_result_aic$goodness.of.fit, "goodness-of-fit Akaike information criterion (AIC)")
+  expect_named(
+    adjusted_result_both$goodness.of.fit,
+    c(
+      "goodness-of-fit coefficient of determination (R\u00B2)",
+      "goodness-of-fit Akaike information criterion (AIC)"
+    )
   )
 })
 

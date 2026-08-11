@@ -4,20 +4,26 @@
 \alias{dist.goodness.of.fit}
 \title{Calculate Goodness-of-Fit for Adjusted Distance Matrices}
 \usage{
-dist.goodness.of.fit(dm, adjusted_dm)
+dist.goodness.of.fit(dm, adjusted_dm, metric = c("r2", "aic", "both"), k = 1)
 }
 \arguments{
 \item{dm}{The original/raw distance matrix.}
 
 \item{adjusted_dm}{The adjusted/residual distance matrix.}
+
+\item{metric}{Goodness-of-fit metric to compute: \code{"r2"},
+\code{"aic"}, or \code{"both"}. Default is \code{"r2"}.}
+
+\item{k}{Number of estimated parameters used when computing AIC. Default is 1.}
 }
 \value{
-Goodness-of-fit coefficient of determination (\eqn{R^2})
+A named numeric vector containing the requested metric(s):
+\eqn{R^2}, AIC, or both.
 }
 \description{
-This function computes the coefficient of determination (\eqn{R^2}) by
-comparing total variation in a raw distance matrix with residual variation in
-an adjusted distance matrix.
+This function computes distance-based goodness-of-fit metrics by comparing
+total variation in a raw distance matrix with residual variation in an
+adjusted distance matrix.
 }
 \examples{
 data(mtcars)
