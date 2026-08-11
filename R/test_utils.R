@@ -102,9 +102,10 @@ Tw2.test <- function(dm, f, nrep = 999) {
 #' @param formula (optional) A right-hand side ONLY formula to be used with
 #'   'formula_data' for confounder adjustment/elimination from `dm`. Results in
 #'   adjusted WdS statistic, omega-squared (\eqn{\omega^2}{\omega^2}) effect
-#'   size estimate, goodness-of-fit coefficient of determination (\eqn{R^2}),
-#'   and p-value. Note that you may use any data type including factor,
-#'   character, integer, and numeric. Default is NULL
+#'   size estimate, model goodness-of-fit coefficient of determination
+#'   (\eqn{R^2}), adjustment covariate goodness-of-fit coefficient of
+#'   determination (\eqn{R^2}), and p-value. Note that you may use any data type
+#'   including factor, character, integer, and numeric. Default is NULL
 #' @param formula_data (optional) An environment, data frame, list, or object
 #'   coercible to a data frame, such as \code{phyloseq::sample_data()}, to be
 #'   used in conjunction with 'formula' for confounder adjustment. Default is
@@ -118,10 +119,13 @@ Tw2.test <- function(dm, f, nrep = 999) {
 #'   \item \code{data.name}: a string describing the input data.
 #'   \item \code{statistic}: observed WdS test statistic.
 #'   \item \code{estimate}: effect size estimator of variance, omega-squared (\eqn{\omega^2}{\omega^2}).
-#'   \item \code{goodness.of.fit}: goodness-of-fit coefficient of determination
-#'   (\eqn{R^2}), computed with \code{\link{dist.goodness.of.fit}} as
-#'   \eqn{1 - SS_{residual}/SS_{total}} for adjusted tests; \code{NULL} for
-#'   unadjusted tests.
+#'   \item \code{model.goodness.of.fit}: model goodness-of-fit coefficient of
+#'   determination (\eqn{R^2}) from the grouping factor \code{f}, computed with
+#'   \code{\link{dist.goodness.of.fit}} as
+#'   \eqn{1 - SS_{residual}/SS_{total}}.
+#'   \item \code{goodness.of.fit}: adjustment covariate goodness-of-fit
+#'   coefficient of determination (\eqn{R^2}) for adjusted tests;
+#'   \code{NULL} for unadjusted tests.
 #'   \item \code{p.value}: The p-value of the test.
 #'   \item \code{parameter}: A list of 2-4 containing:
 #'          \itemize{
@@ -183,10 +187,16 @@ WdS.test <- function(dm, f, nrep=999, strata=NULL, formula=NULL, formula_data=pa
   if (!has_formula && has_formula_data) {
       stop("Both 'formula' and 'formula_data' must be provided together for a.dist() adjustment processing.")
    }
+  adjustment.goodness.of.fit <- NULL
   if (has_formula) {
     data <- .as_formula_data(formula_data)
     dm <- a.dist(dm, formula, data, ...)
+    adjustment.goodness.of.fit <- dist.goodness.of.fit(original_dm, dm)
   }
+
+  dm_model <- suppressMessages(a.dist(dm, formula = ~ f, formula_data = data.frame(f = f)))
+  model.goodness.of.fit <- dist.goodness.of.fit(original_dm, dm_model)
+
   test.results <- generic.distance.permutation.test(WdS, dm=dm, f=f, nrep=nrep, strata=strata)
 
     # Name of the hypothesis test
@@ -221,12 +231,6 @@ WdS.test <- function(dm, f, nrep=999, strata=NULL, formula=NULL, formula_data=pa
   estimate <- (((length(levels(f))-1)*(unname(statistic)-1))/((length(levels(f))-1)*(unname(statistic) - 1) + attr(dm, "Size")))
   attr(estimate, "names") <- "effect size estimator of variance, omega-squared (\u03C9\u00B2)"
 
-  # Goodness-of-fit using coefficient of determination (R-squared)
-  goodness.of.fit <- NULL
-  if (has_formula) {
-    goodness.of.fit <- dist.goodness.of.fit(original_dm, dm)
-  }
-
   # P-value
   p.value <- test.results$p.value
 
@@ -234,7 +238,8 @@ WdS.test <- function(dm, f, nrep=999, strata=NULL, formula=NULL, formula_data=pa
   TEST <- list(method = method, data.name = data.name, # null.value = null.value, # alternative = alternative,
                statistic = statistic, p.value = p.value,
                estimate = estimate,
-               goodness.of.fit = goodness.of.fit,
+               model.goodness.of.fit = model.goodness.of.fit,
+               goodness.of.fit = adjustment.goodness.of.fit,
                parameter = c(if(!is.null(strata)){c("strata"= deparse(substitute(strata)))},
                              if(!is.null(formula)){c("formula"= paste0(deparse(substitute(formula)),
                                                                        " with ",
@@ -252,8 +257,12 @@ WdS.test <- function(dm, f, nrep=999, strata=NULL, formula=NULL, formula_data=pa
 #' @export
 print.wdstest <- function(x, ...) {
   NextMethod()
+  if (!is.null(x$model.goodness.of.fit)) {
+    cat("model goodness-of-fit (R\u00B2 of grouping factor model):",
+        format(x$model.goodness.of.fit, digits = 4), "\n")
+  }
   if (!is.null(x$goodness.of.fit)) {
-    cat("goodness-of-fit (R\u00B2 of adjusted vs. original distances):",
+    cat("adjustment covariate goodness-of-fit (R\u00B2 of adjusted vs. original distances):",
         format(x$goodness.of.fit, digits = 4), "\n")
   }
   invisible(x)

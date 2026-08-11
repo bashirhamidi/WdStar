@@ -52,35 +52,35 @@ dist.sigma2 <- function(dm) {
   sum(dd^2) / nrow(dd) / (nrow(dd) - 1)
 }
 
-#' Calculate Goodness-of-Fit for Adjusted Distance Matrices
+#' Calculate Goodness-of-Fit for Residual Distance Matrices
 #'
 #' This function computes the coefficient of determination (\eqn{R^2}) by
 #' comparing total variation in a raw distance matrix with residual variation in
-#' an adjusted distance matrix.
+#' a residual distance matrix.
 #'
 #' @param dm The original/raw distance matrix.
-#' @param adjusted_dm The adjusted/residual distance matrix.
+#' @param dm_residual The residual distance matrix.
 #'
 #' @return Goodness-of-fit coefficient of determination (\eqn{R^2})
 #' @export
 #' @examples
 #' data(mtcars)
 #' dm <- dist(mtcars[1:3], method = "euclidean")
-#' adjusted_dm <- a.dist(dm, formula = ~ wt, formula_data = mtcars)
-#' dist.goodness.of.fit(dm, adjusted_dm)
+#' dm_residual <- a.dist(dm, formula = ~ wt, formula_data = mtcars)
+#' dist.goodness.of.fit(dm, dm_residual)
 #'
-dist.goodness.of.fit <- function(dm, adjusted_dm) {
-  if (!is.dist(dm) || !is.dist(adjusted_dm)) {
-    stop("'dm' and 'adjusted_dm' must both be distance matrices of class 'dist'.")
+dist.goodness.of.fit <- function(dm, dm_residual) {
+  if (!is.dist(dm) || !is.dist(dm_residual)) {
+    stop("'dm' and 'dm_residual' must both be distance matrices of class 'dist'.")
   }
-  if (attr(dm, "Size") != attr(adjusted_dm, "Size")) {
-    stop("'dm' and 'adjusted_dm' must contain the same number of observations.")
+  if (attr(dm, "Size") != attr(dm_residual, "Size")) {
+    stop("'dm' and 'dm_residual' must contain the same number of observations.")
   }
 
   # dist.sigma2() is proportional to distance-based total SS; the shared
   # sample-size scaling cancels in SS_residual / SS_total.
   ss_total <- dist.sigma2(dm)
-  ss_residual <- dist.sigma2(adjusted_dm)
+  ss_residual <- dist.sigma2(dm_residual)
   ## if ss_total == 0, the original dist matrix has no total var to explain. 
   ## In other words, all pairwise distances are 0 and the equation would be undefined. 
   ## This prevents NaN from being output, with _real_ keeping the results as a numeric missing value. 

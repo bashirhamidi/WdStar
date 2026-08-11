@@ -83,15 +83,15 @@ formula <- ~ wt + as.factor(am)
 ## Adjustment example 1: pass unadjusted `dm` and formula to WdS.test()
 WdS.test(dm=dm, f=f, formula=formula, formula_data=mtcars) ## Perform adjusted test
 
-## Note that the output includes goodness.of.fit computed from raw and adjusted  
-##  distances, which can be used to assess the impact of adjustment on the data.  
+## Note that the output includes model.goodness.of.fit (grouping factor model fit)
+## and, for adjusted tests, goodness.of.fit (adjustment covariate fit).
 
 ## Adjustment example 2: Create the adjusted distance matrix `a.dm` outside the function
 a.dm <- a.dist(dm=dm, formula=formula, formula_data=mtcars) 
 WdS.test(dm=a.dm, f=f) ## Perform adjusted test with `a.dm`
 
-## Goodness of fit can also be computed from raw and adjusted distances directly
-dist.goodness.of.fit(dm=dm, adjusted_dm=a.dm)
+## Goodness of fit can also be computed from raw and residual distances directly
+dist.goodness.of.fit(dm=dm, dm_residual=a.dm)
 ```
 
 Further examples are provided in the package documentation and may be accessed by running the following commands:
