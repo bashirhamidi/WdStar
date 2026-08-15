@@ -88,10 +88,14 @@ test_that("WdS.test accepts phyloseq sample_data as formula_data", {
   expect_match(result$method, "Adjusted")
 })
 
-test_that("WdS.test reports goodness of fit only for adjusted tests", {
+test_that("WdS.test reports model and adjustment goodness of fit correctly", {
   adjustment <- rep(c("low", "high"), length.out = n_rows)
-  adjusted_dm <- suppressMessages(a.dist(distance_matrix, formula = ~ adjustment))
-  expected_r_squared <- dist.goodness.of.fit(distance_matrix, adjusted_dm)
+  dm_adjustment <- suppressMessages(a.dist(distance_matrix, formula = ~ adjustment))
+  dm_model_unadjusted <- suppressMessages(a.dist(distance_matrix, formula = ~ factor_var))
+  dm_model_adjusted <- suppressMessages(a.dist(dm_adjustment, formula = ~ factor_var))
+  expected_adjustment_r_squared <- dist.goodness.of.fit(distance_matrix, dm_adjustment)
+  expected_model_unadjusted_r_squared <- dist.goodness.of.fit(distance_matrix, dm_model_unadjusted)
+  expected_model_adjusted_r_squared <- dist.goodness.of.fit(distance_matrix, dm_model_adjusted)
 
   unadjusted_result <- WdS.test(
     dm = distance_matrix,
@@ -105,19 +109,29 @@ test_that("WdS.test reports goodness of fit only for adjusted tests", {
     formula = ~ adjustment
   ))
 
+  expect_named(unadjusted_result$model.goodness.of.fit, "goodness-of-fit coefficient of determination (R\u00B2)")
+  expect_equal(
+    unname(unadjusted_result$model.goodness.of.fit),
+    unname(expected_model_unadjusted_r_squared)
+  )
   expect_null(unadjusted_result$goodness.of.fit)
   expect_named(unadjusted_result$estimate, "effect size estimator of variance, omega-squared (\u03C9\u00B2)")
   expect_named(adjusted_result$estimate, "effect size estimator of variance, omega-squared (\u03C9\u00B2)")
+  expect_named(adjusted_result$model.goodness.of.fit, "goodness-of-fit coefficient of determination (R\u00B2)")
+  expect_equal(
+    unname(adjusted_result$model.goodness.of.fit),
+    unname(expected_model_adjusted_r_squared)
+  )
   expect_named(adjusted_result$goodness.of.fit, "goodness-of-fit coefficient of determination (R\u00B2)")
-  expect_equal(unname(adjusted_result$goodness.of.fit), unname(expected_r_squared))
+  expect_equal(unname(adjusted_result$goodness.of.fit), unname(expected_adjustment_r_squared))
 })
 
 test_that("dist.goodness.of.fit computes R squared for raw and adjusted distances", {
   adjustment <- rep(c("low", "high"), length.out = n_rows)
-  adjusted_dm <- suppressMessages(a.dist(distance_matrix, formula = ~ adjustment))
-  expected_r_squared <- 1 - (dist.sigma2(adjusted_dm) / dist.sigma2(distance_matrix))
+  dm_residual <- suppressMessages(a.dist(distance_matrix, formula = ~ adjustment))
+  expected_r_squared <- 1 - (dist.sigma2(dm_residual) / dist.sigma2(distance_matrix))
 
-  result <- dist.goodness.of.fit(distance_matrix, adjusted_dm)
+  result <- dist.goodness.of.fit(distance_matrix, dm_residual)
 
   expect_named(result, "goodness-of-fit coefficient of determination (R\u00B2)")
   expect_equal(unname(result), expected_r_squared)
@@ -125,10 +139,10 @@ test_that("dist.goodness.of.fit computes R squared for raw and adjusted distance
 
 test_that("dist.goodness.of.fit validates distance matrix inputs", {
   adjustment <- rep(c("low", "high"), length.out = n_rows)
-  adjusted_dm <- suppressMessages(a.dist(distance_matrix, formula = ~ adjustment))
+  dm_residual <- suppressMessages(a.dist(distance_matrix, formula = ~ adjustment))
 
   expect_error(
-    dist.goodness.of.fit(as.matrix(distance_matrix), adjusted_dm),
+    dist.goodness.of.fit(as.matrix(distance_matrix), dm_residual),
     "must both be distance matrices"
   )
   expect_error(

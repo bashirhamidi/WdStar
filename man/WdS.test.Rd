@@ -28,9 +28,10 @@ Default is NULL.}
 \item{formula}{(optional) A right-hand side ONLY formula to be used with
 'formula_data' for confounder adjustment/elimination from `dm`. Results in
 adjusted WdS statistic, omega-squared (\eqn{\omega^2}{\omega^2}) effect
-size estimate, goodness-of-fit coefficient of determination (\eqn{R^2}),
-and p-value. Note that you may use any data type including factor,
-character, integer, and numeric. Default is NULL}
+size estimate, model goodness-of-fit coefficient of determination
+(\eqn{R^2}), adjustment covariate goodness-of-fit coefficient of
+determination (\eqn{R^2}), and p-value. Note that you may use any data type
+including factor, character, integer, and numeric. Default is NULL}
 
 \item{formula_data}{(optional) An environment, data frame, list, or object
 coercible to a data frame, such as \code{phyloseq::sample_data()}, to be
@@ -48,10 +49,13 @@ A list containing:
   \item \code{data.name}: a string describing the input data.
   \item \code{statistic}: observed WdS test statistic.
   \item \code{estimate}: effect size estimator of variance, omega-squared (\eqn{\omega^2}{\omega^2}).
-  \item \code{goodness.of.fit}: goodness-of-fit coefficient of determination
-  (\eqn{R^2}), computed with \code{\link{dist.goodness.of.fit}} as
-  \eqn{1 - SS_{residual}/SS_{total}} for adjusted tests; \code{NULL} for
-  unadjusted tests.
+  \item \code{model.goodness.of.fit}: model goodness-of-fit coefficient of
+  determination (\eqn{R^2}) from the grouping factor \code{f}, computed with
+  \code{\link{dist.goodness.of.fit}} as
+  \eqn{1 - SS_{residual}/SS_{total}}.
+  \item \code{goodness.of.fit}: adjustment covariate goodness-of-fit
+  coefficient of determination (\eqn{R^2}) for adjusted tests;
+  \code{NULL} for unadjusted tests.
   \item \code{p.value}: The p-value of the test.
   \item \code{parameter}: A list of 2-4 containing:
          \itemize{

@@ -2,14 +2,14 @@
 % Please edit documentation in R/dist_utils.R
 \name{dist.goodness.of.fit}
 \alias{dist.goodness.of.fit}
-\title{Calculate Goodness-of-Fit for Adjusted Distance Matrices}
+\title{Calculate Goodness-of-Fit for Residual Distance Matrices}
 \usage{
-dist.goodness.of.fit(dm, adjusted_dm)
+dist.goodness.of.fit(dm, dm_residual)
 }
 \arguments{
 \item{dm}{The original/raw distance matrix.}
 
-\item{adjusted_dm}{The adjusted/residual distance matrix.}
+\item{dm_residual}{The residual distance matrix.}
 }
 \value{
 Goodness-of-fit coefficient of determination (\eqn{R^2})
@@ -17,12 +17,12 @@ Goodness-of-fit coefficient of determination (\eqn{R^2})
 \description{
 This function computes the coefficient of determination (\eqn{R^2}) by
 comparing total variation in a raw distance matrix with residual variation in
-an adjusted distance matrix.
+a residual distance matrix.
 }
 \examples{
 data(mtcars)
 dm <- dist(mtcars[1:3], method = "euclidean")
-adjusted_dm <- a.dist(dm, formula = ~ wt, formula_data = mtcars)
-dist.goodness.of.fit(dm, adjusted_dm)
+dm_residual <- a.dist(dm, formula = ~ wt, formula_data = mtcars)
+dist.goodness.of.fit(dm, dm_residual)
 
 }
