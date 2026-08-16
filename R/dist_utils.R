@@ -54,14 +54,18 @@ dist.sigma2 <- function(dm) {
 
 #' Calculate Goodness-of-Fit for Adjusted Distance Matrices
 #'
-#' This function computes the coefficient of determination (\eqn{R^2}) by
-#' comparing total variation in a raw distance matrix with residual variation in
-#' an adjusted distance matrix.
+#' This function computes distance-based goodness-of-fit metrics by comparing
+#' total variation in a raw distance matrix with residual variation in an
+#' adjusted distance matrix.
 #'
 #' @param dm The original/raw distance matrix.
 #' @param adjusted_dm The adjusted/residual distance matrix.
+#' @param metric Goodness-of-fit metric to compute: \code{"r2"},
+#'   \code{"aic"}, or \code{"both"}. Default is \code{"r2"}.
+#' @param k Number of estimated parameters used when computing AIC. Default is 1.
 #'
-#' @return Goodness-of-fit coefficient of determination (\eqn{R^2})
+#' @return A named numeric vector containing the requested metric(s):
+#'   \eqn{R^2}, AIC, or both.
 #' @export
 #' @examples
 #' data(mtcars)
@@ -69,12 +73,16 @@ dist.sigma2 <- function(dm) {
 #' adjusted_dm <- a.dist(dm, formula = ~ wt, formula_data = mtcars)
 #' dist.goodness.of.fit(dm, adjusted_dm)
 #'
-dist.goodness.of.fit <- function(dm, adjusted_dm) {
+dist.goodness.of.fit <- function(dm, adjusted_dm, metric = c("r2", "aic", "both"), k = 1) {
+  metric <- match.arg(metric)
   if (!is.dist(dm) || !is.dist(adjusted_dm)) {
     stop("'dm' and 'adjusted_dm' must both be distance matrices of class 'dist'.")
   }
   if (attr(dm, "Size") != attr(adjusted_dm, "Size")) {
     stop("'dm' and 'adjusted_dm' must contain the same number of observations.")
+  }
+  if (!is.numeric(k) || length(k) != 1 || is.na(k) || k <= 0) {
+    stop("'k' must be a single positive numeric value.")
   }
 
   # dist.sigma2() is proportional to distance-based total SS; the shared
@@ -84,9 +92,28 @@ dist.goodness.of.fit <- function(dm, adjusted_dm) {
   ## if ss_total == 0, the original dist matrix has no total var to explain. 
   ## In other words, all pairwise distances are 0 and the equation would be undefined. 
   ## This prevents NaN from being output, with _real_ keeping the results as a numeric missing value. 
-  goodness.of.fit <- if (ss_total == 0) NA_real_ else 1 - (ss_residual / ss_total)
-  attr(goodness.of.fit, "names") <- "goodness-of-fit coefficient of determination (R\u00B2)"
-  goodness.of.fit
+  r2 <- if (ss_total == 0) NA_real_ else 1 - (ss_residual / ss_total)
+  names(r2) <- "goodness-of-fit coefficient of determination (R\u00B2)"
+
+  residual_distances <- as.numeric(adjusted_dm)
+  n <- length(residual_distances)
+  rss <- sum(residual_distances^2)
+  log_likelihood <- if (rss == 0) {
+    Inf
+  } else {
+    sigma2_mle <- rss / n
+    -0.5 * n * (log(2 * pi * sigma2_mle) + 1)
+  }
+  aic <- 2 * k - 2 * log_likelihood
+  names(aic) <- "goodness-of-fit Akaike information criterion (AIC)"
+
+  if (metric == "r2") {
+    return(r2)
+  }
+  if (metric == "aic") {
+    return(aic)
+  }
+  c(r2, aic)
 }
 
 #' Calculate Sum of Squares for Distance Matrix with Factor

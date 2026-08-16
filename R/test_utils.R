@@ -109,6 +109,8 @@ Tw2.test <- function(dm, f, nrep = 999) {
 #'   coercible to a data frame, such as \code{phyloseq::sample_data()}, to be
 #'   used in conjunction with 'formula' for confounder adjustment. Default is
 #'   parent.frame()
+#' @param fit_metric Goodness-of-fit metric for adjusted tests. One of
+#'   \code{"r2"}, \code{"aic"}, or \code{"both"}. Default is \code{"r2"}.
 #' @param ... Additional arguments passed to \code{\link{a.dist}()}, such as
 #'   \code{tol} (tolerance for eigenvalues; default \code{1e-8}). Only used
 #'   when \code{formula} is provided.
@@ -118,10 +120,10 @@ Tw2.test <- function(dm, f, nrep = 999) {
 #'   \item \code{data.name}: a string describing the input data.
 #'   \item \code{statistic}: observed WdS test statistic.
 #'   \item \code{estimate}: effect size estimator of variance, omega-squared (\eqn{\omega^2}{\omega^2}).
-#'   \item \code{goodness.of.fit}: goodness-of-fit coefficient of determination
-#'   (\eqn{R^2}), computed with \code{\link{dist.goodness.of.fit}} as
-#'   \eqn{1 - SS_{residual}/SS_{total}} for adjusted tests; \code{NULL} for
-#'   unadjusted tests.
+#'   \item \code{goodness.of.fit}: goodness-of-fit metric(s) for adjusted tests:
+#'   coefficient of determination (\eqn{R^2}), Akaike information criterion
+#'   (AIC), or both (selected via \code{fit_metric}); \code{NULL} for unadjusted
+#'   tests.
 #'   \item \code{p.value}: The p-value of the test.
 #'   \item \code{parameter}: A list of 2-4 containing:
 #'          \itemize{
@@ -175,7 +177,9 @@ Tw2.test <- function(dm, f, nrep = 999) {
 #' a.dm <- a.dist(dm=dm, formula=formula, formula_data=mtcars)
 #' WdS.test(dm=a.dm, f=f) ## Perform adjusted test with `a.dm`
 #'
-WdS.test <- function(dm, f, nrep=999, strata=NULL, formula=NULL, formula_data=parent.frame(), ...){
+WdS.test <- function(dm, f, nrep=999, strata=NULL, formula=NULL, formula_data=parent.frame(),
+                     fit_metric = c("r2", "aic", "both"), ...){
+  fit_metric <- match.arg(fit_metric)
   has_formula <- !is.null(formula)
   has_formula_data <- !missing(formula_data) && !is.null(formula_data)
   original_dm <- dm
@@ -224,7 +228,10 @@ WdS.test <- function(dm, f, nrep=999, strata=NULL, formula=NULL, formula_data=pa
   # Goodness-of-fit using coefficient of determination (R-squared)
   goodness.of.fit <- NULL
   if (has_formula) {
-    goodness.of.fit <- dist.goodness.of.fit(original_dm, dm)
+    model_data <- .as_formula_data(formula_data)
+    design_matrix <- stats::model.matrix(formula, data = stats::model.frame(formula, model_data, drop.unused.levels = TRUE))
+    k <- qr(design_matrix)$rank + 1
+    goodness.of.fit <- dist.goodness.of.fit(original_dm, dm, metric = fit_metric, k = k)
   }
 
   # P-value
@@ -253,8 +260,11 @@ WdS.test <- function(dm, f, nrep=999, strata=NULL, formula=NULL, formula_data=pa
 print.wdstest <- function(x, ...) {
   NextMethod()
   if (!is.null(x$goodness.of.fit)) {
-    cat("goodness-of-fit (R\u00B2 of adjusted vs. original distances):",
-        format(x$goodness.of.fit, digits = 4), "\n")
+    cat("goodness-of-fit (adjusted vs. original distances):\n")
+    stats <- x$goodness.of.fit
+    for (i in seq_along(stats)) {
+      cat("  -", names(stats)[i], ":", format(stats[i], digits = 4), "\n")
+    }
   }
   invisible(x)
 }

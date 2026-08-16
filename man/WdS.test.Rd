@@ -11,6 +11,7 @@ WdS.test(
   strata = NULL,
   formula = NULL,
   formula_data = parent.frame(),
+  fit_metric = c("r2", "aic", "both"),
   ...
 )
 }
@@ -37,6 +38,9 @@ coercible to a data frame, such as \code{phyloseq::sample_data()}, to be
 used in conjunction with 'formula' for confounder adjustment. Default is
 parent.frame()}
 
+\item{fit_metric}{Goodness-of-fit metric for adjusted tests. One of
+\code{"r2"}, \code{"aic"}, or \code{"both"}. Default is \code{"r2"}.}
+
 \item{...}{Additional arguments passed to \code{\link{a.dist}()}, such as
 \code{tol} (tolerance for eigenvalues; default \code{1e-8}). Only used
 when \code{formula} is provided.}
@@ -48,10 +52,10 @@ A list containing:
   \item \code{data.name}: a string describing the input data.
   \item \code{statistic}: observed WdS test statistic.
   \item \code{estimate}: effect size estimator of variance, omega-squared (\eqn{\omega^2}{\omega^2}).
-  \item \code{goodness.of.fit}: goodness-of-fit coefficient of determination
-  (\eqn{R^2}), computed with \code{\link{dist.goodness.of.fit}} as
-  \eqn{1 - SS_{residual}/SS_{total}} for adjusted tests; \code{NULL} for
-  unadjusted tests.
+  \item \code{goodness.of.fit}: goodness-of-fit metric(s) for adjusted tests:
+  coefficient of determination (\eqn{R^2}), Akaike information criterion
+  (AIC), or both (selected via \code{fit_metric}); \code{NULL} for unadjusted
+  tests.
   \item \code{p.value}: The p-value of the test.
   \item \code{parameter}: A list of 2-4 containing:
          \itemize{
