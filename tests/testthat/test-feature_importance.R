@@ -157,6 +157,8 @@ test_that("WdS.taxa.importance adds formula terms to each taxon adjustment", {
     Subject_ID = factor(rep(seq_len(fi_n_rows / 2), each = 2)),
     row.names = rev(attr(fi_distance_matrix, "Labels"))
   )
+  # Reverse both row names and values so the test proves formula_data is aligned
+  # by sample ID before the current taxon is added.
   sample_metadata$Subject_ID <- rev(sample_metadata$Subject_ID)
 
   result <- WdS.taxa.importance(
@@ -179,6 +181,8 @@ test_that("WdS.taxa.importance adds formula terms to each taxon adjustment", {
   manual_result <- suppressMessages(WdS.test(
     dm = fi_distance_matrix,
     f = fi_factor_var,
+    # WdS.taxa.importance(formula = ~ Subject_ID) should be equivalent to this
+    # manual model after it adds the current taxon to the adjustment formula.
     formula = ~ Subject_ID + ASV,
     formula_data = manual_data,
     goodness = c("adjustment", "semi.partial"),
@@ -212,6 +216,8 @@ test_that("WdS.taxa.importance accepts explicit taxon placeholders in formula", 
     f = fi_factor_var,
     taxa_table = taxa_table,
     taxa_are_rows = FALSE,
+    # Including .wdstar_taxon explicitly lets users control the formula shape
+    # instead of having the taxon term appended automatically.
     formula = ~ .wdstar_taxon + Subject_ID,
     formula_data = sample_metadata,
     sort = FALSE,

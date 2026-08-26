@@ -329,10 +329,14 @@ WdS.taxa.importance <- function(dm, f, physeq = NULL, taxa_table = NULL,
 
   rank.by <- match.arg(rank.by)
   if (is.null(decreasing)) {
+    # Most importance scores are useful with larger values first. A smaller
+    # p-value and a smaller post-adjustment factor R2 are the two exceptions.
     decreasing <- !(rank.by %in% c("p.value", "factor.goodness.of.fit.after.adjustment"))
   }
 
   dots <- list(...)
+  # WdS.taxa.importance() must control goodness itself so every taxon row has
+  # comparable adjustment, semi-partial, full, and partial goodness columns.
   reserved_dots <- intersect(names(dots), "goodness")
   if (length(reserved_dots) > 0) {
     stop(
@@ -343,6 +347,8 @@ WdS.taxa.importance <- function(dm, f, physeq = NULL, taxa_table = NULL,
   }
   .validate_taxa_importance_formula(formula)
 
+  # Convert either a phyloseq object or user-supplied abundance table into a
+  # sample-by-taxon numeric matrix. No abundance transformation is done here.
   taxa_inputs <- .extract_taxa_importance_inputs(
     physeq = physeq,
     taxa_table = taxa_table,
@@ -360,11 +366,15 @@ WdS.taxa.importance <- function(dm, f, physeq = NULL, taxa_table = NULL,
     taxonomy.ranks = taxonomy.ranks
   )
   taxon_summary <- .summarize_taxa_matrix(taxa_matrix)
+  # formula_data is only needed when the user supplies sample-level adjustment
+  # terms, such as Subject_ID. It is aligned to dm labels before the scan.
   taxa_formula_data <- .prepare_taxa_importance_formula_data(
     formula = formula,
     formula_data = formula_data,
     dm = dm
   )
+  # Use one reserved placeholder for the taxon abundance vector. Real taxon IDs
+  # may be numeric, contain spaces, or otherwise be invalid formula names.
   taxon_variable <- ".wdstar_taxon"
   taxon_formula <- .build_taxa_importance_formula(
     formula = formula,
@@ -373,6 +383,8 @@ WdS.taxa.importance <- function(dm, f, physeq = NULL, taxa_table = NULL,
   )
   taxon_formula_text <- paste(deparse(taxon_formula), collapse = "")
 
+  # The unadjusted factor-only fit does not depend on the taxon being scanned,
+  # so compute it once and reuse it for delta.factor.goodness.of.fit.
   baseline_result <- .run_taxa_importance_wdstest(
     args = list(
       dm = dm,
@@ -397,6 +409,9 @@ WdS.taxa.importance <- function(dm, f, physeq = NULL, taxa_table = NULL,
     taxon_values <- taxa_matrix[, i]
     taxon_row <- taxon_summary[i, , drop = FALSE]
 
+    # a.dist() cannot fit an adjustment term with no variation. Keep the taxon
+    # in the output so users can see that it was skipped instead of silently
+    # shortening or reindexing the result table.
     if (!isTRUE(taxon_row$taxon.variance > 0)) {
       rows[[i]] <- .taxa_importance_row(
         taxon = taxon_id,
@@ -444,6 +459,9 @@ WdS.taxa.importance <- function(dm, f, physeq = NULL, taxa_table = NULL,
     partial_r2 <- .extract_goodness_value(adjusted_result, "partial")
     omega_adjusted <- unname(adjusted_result$estimate)
 
+    # Store several candidate ranking quantities. The importance column is just
+    # an alias of rank.by, so users can re-rank this table without rerunning the
+    # expensive WdS.test() loop.
     rows[[i]] <- .taxa_importance_row(
       taxon = taxon_id,
       tested = TRUE,
@@ -476,6 +494,8 @@ WdS.taxa.importance <- function(dm, f, physeq = NULL, taxa_table = NULL,
     result[["test.result"]] <- test_results
   }
 
+  # Keep a single importance column for convenient plotting/reporting while
+  # retaining the original named score columns for interpretation.
   result[["importance"]] <- result[[rank.by]]
   result[["rank.by"]] <- rank.by
 
@@ -705,6 +725,8 @@ WdS.taxa.importance <- function(dm, f, physeq = NULL, taxa_table = NULL,
   if (is.null(formula)) {
     return(invisible(NULL))
   }
+  # WdS.test() and a.dist() take right-hand-side formulas because the distance
+  # matrix is supplied separately as dm, not as a left-hand-side response.
   if (!inherits(formula, "formula") || length(formula) != 2) {
     stop("'formula' must be NULL or a right-hand side formula such as ~ Subject_ID.")
   }
@@ -713,11 +735,15 @@ WdS.taxa.importance <- function(dm, f, physeq = NULL, taxa_table = NULL,
 
 .prepare_taxa_importance_formula_data <- function(formula, formula_data, dm) {
   if (is.null(formula)) {
+    # Taxon-only scans build a tiny formula_data object inside the loop, one
+    # taxon at a time, so no sample metadata is needed here.
     return(NULL)
   }
 
   data <- .as_formula_data(formula_data)
   if (is.environment(data)) {
+    # Environments support parent-frame lookup but do not have row names, so
+    # alignment by sample ID is only possible for data-frame-like inputs.
     return(data)
   }
 
@@ -729,6 +755,8 @@ WdS.taxa.importance <- function(dm, f, physeq = NULL, taxa_table = NULL,
   dm_labels <- attr(dm, "Labels")
 
   if (!is.null(dm_labels) && .has_meaningful_rownames(formula_data)) {
+    # Prefer label-based alignment when possible. This protects phyloseq-style
+    # sample_data objects if their rows are in a different order than dm.
     if (anyDuplicated(rownames(formula_data))) {
       stop("Sample names in 'formula_data' must be unique.")
     }
@@ -739,6 +767,8 @@ WdS.taxa.importance <- function(dm, f, physeq = NULL, taxa_table = NULL,
     }
     formula_data <- formula_data[dm_labels, , drop = FALSE]
   } else {
+    # Without meaningful row names, fall back to positional matching but require
+    # the same sample count as dm to avoid recycling or partial matching.
     if (nrow(formula_data) != dm_size) {
       stop("'formula_data' must contain the same number of samples as 'dm'.")
     }
@@ -753,9 +783,12 @@ WdS.taxa.importance <- function(dm, f, physeq = NULL, taxa_table = NULL,
 .build_taxa_importance_formula <- function(formula, formula_data,
                                            taxon_variable) {
   if (is.null(formula)) {
+    # Backward-compatible default: one WdS.test() adjustment per taxon.
     return(stats::as.formula(paste("~", taxon_variable)))
   }
   if (taxon_variable %in% all.vars(formula)) {
+    # Advanced users can place the taxon term exactly where they want it, for
+    # example in an interaction or a no-intercept formula.
     return(formula)
   }
 
@@ -777,11 +810,15 @@ WdS.taxa.importance <- function(dm, f, physeq = NULL, taxa_table = NULL,
   }
 
   if (is.environment(data)) {
+    # Use a child environment so each iteration can expose .wdstar_taxon without
+    # modifying the user's environment or masking their original variables.
     taxon_env <- new.env(parent = data)
     assign(taxon_variable, taxon_values, envir = taxon_env)
     return(taxon_env)
   }
 
+  # Data frames are copied in this local scope, so adding the placeholder column
+  # here does not alter the user's original metadata object.
   data[[taxon_variable]] <- taxon_values
   data
 }
