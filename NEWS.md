@@ -41,6 +41,16 @@
 * Added `phyloseq` as a suggested package to support tests and examples involving
   `sample_data()` inputs.
 
+* Added `WdS.taxa.importance()` for ASV/OTU/taxon ranking. The function adjusts
+  for one taxon at a time with `WdS.test()`, returns a `data.table`, stores
+  adjustment goodness-of-fit, factor goodness-of-fit after adjustment, WdS
+  statistic, p-value, omega-squared, and optional `WdS.test()` objects, and can
+  include taxonomy ranks beside taxon IDs. Users can also add sample-level
+  adjustment terms to every taxon-specific model with `formula`, for example
+  `formula = ~ Subject_ID` for paired/repeated-measures scans. Taxon abundances
+  are used exactly as supplied; transformations should be done upstream by the
+  user.
+
 * Updated documentation for `a.dist()`, `WdS.test()`, and
   `dist.goodness.of.fit()`, including accepted `formula_data` input types,
   parent-frame formula lookup, goodness-of-fit component definitions, distance

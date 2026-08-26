@@ -133,6 +133,46 @@ length(attr(a.dm.with.eigenvalues, "distance.diagnostics")$eigenvalues[[1]])
 
 ## Distance-based pseudo-R-squared can also be computed directly
 dist.goodness.of.fit(dm=dm, dm_residual=a.dm)
+
+## Taxa/ASV importance can be ranked by adjusting for one taxon at a time.
+## The abundance values are used exactly as supplied.
+taxa_table <- data.frame(
+  ASV1 = mtcars$wt,
+  ASV2 = mtcars$hp,
+  ASV3 = mtcars$qsec,
+  row.names = rownames(mtcars)
+)
+taxonomy_table <- data.frame(
+  Genus = c("TaxonA", "TaxonB", "TaxonC"),
+  Species = c("species1", "species2", "species3"),
+  row.names = colnames(taxa_table)
+)
+WdS.taxa.importance(
+  dm=dm,
+  f=f,
+  taxa_table=taxa_table,
+  taxa_are_rows=FALSE,
+  taxonomy_table=taxonomy_table,
+  nrep=9
+)
+
+## Add sample-level terms to every taxon-specific adjustment model.
+## For example, this evaluates each taxon together with a paired subject term.
+sample_data <- data.frame(
+  Subject_ID = factor(rep(seq_len(16), each = 2)),
+  row.names = rownames(mtcars)
+)
+WdS.taxa.importance(
+  dm=dm,
+  f=f,
+  taxa_table=taxa_table,
+  taxa_are_rows=FALSE,
+  taxonomy_table=taxonomy_table,
+  formula=~ Subject_ID,
+  formula_data=sample_data,
+  rank.by="adjustment.goodness.of.fit",
+  nrep=9
+)
 ```
 
 Further examples are provided in the package documentation and may be accessed by running the following commands:
@@ -140,6 +180,7 @@ Further examples are provided in the package documentation and may be accessed b
 ?WdS.test
 ?a.dist
 ?dist.goodness.of.fit
+?WdS.taxa.importance
 ```
 
 ## Feature Requests and Bugs

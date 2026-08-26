@@ -14,6 +14,7 @@ Maintainer: Bashir Mark Hamidi <hamidib@musc.edu>
 Depends: 
     R (>= 3.6.0)
 Imports: 
+    data.table,
     utils,
     stats
 Suggests: 
