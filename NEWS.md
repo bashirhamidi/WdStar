@@ -1,4 +1,4 @@
-# WdStar 2.4.0 2026-08-26
+# WdStar 2.5.0 2026-08-26
 
 * Added `dist.goodness.of.fit()` to compute a distance-based pseudo-coefficient
   of determination, \(R^2_{pseudo} = 1 - \sigma^2_{residual} /
