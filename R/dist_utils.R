@@ -52,40 +52,65 @@ dist.sigma2 <- function(dm) {
   sum(dd^2) / nrow(dd) / (nrow(dd) - 1)
 }
 
-#' Calculate Goodness-of-Fit for Adjusted Distance Matrices
+#' Calculate Distance-Based Pseudo-R-Squared for Residual Distances
 #'
-#' This function computes the coefficient of determination (\eqn{R^2}) by
-#' comparing total variation in a raw distance matrix with residual variation in
-#' an adjusted distance matrix.
+#' This function computes a distance-based pseudo-coefficient of determination
+#' (pseudo-\eqn{R^2}) by comparing total variation in a raw distance matrix with
+#' residual variation in another distance matrix.
 #'
 #' @param dm The original/raw distance matrix.
-#' @param adjusted_dm The adjusted/residual distance matrix.
+#' @param dm_residual A residual distance matrix after removing a model
+#'   component, such as a grouping factor, adjustment variables, or their full
+#'   model.
+#' @param adjusted_dm Optional compatibility alias for \code{dm_residual}.
 #'
-#' @return Goodness-of-fit coefficient of determination (\eqn{R^2})
+#' @return Distance-based pseudo-\eqn{R^2}. Returns \code{NA_real_} when the
+#'   original distance matrix has zero total variation.
+#' @details Let \eqn{V(D) = [N(N-1)]^{-1}\sum_{i<j} d_{ij}^2}. The returned
+#'   diagnostic is
+#'   \deqn{R^2_{pseudo} = 1 - V(D_{residual}) / V(D_{original}).}
+#'   The shared sample-size factor cancels in the ratio. This is a
+#'   distance-based variation-reduction diagnostic, not ordinary least-squares
+#'   \eqn{R^2} for a univariate response. Values near zero indicate little
+#'   reduction in distance variation, larger positive values indicate greater
+#'   reduction, and negative values may occur when the residual distance matrix
+#'   has more variation than the original distance matrix.
 #' @export
 #' @examples
 #' data(mtcars)
 #' dm <- dist(mtcars[1:3], method = "euclidean")
-#' adjusted_dm <- a.dist(dm, formula = ~ wt, formula_data = mtcars)
-#' dist.goodness.of.fit(dm, adjusted_dm)
+#' dm_residual <- a.dist(dm, formula = ~ wt, formula_data = mtcars)
+#' dist.goodness.of.fit(dm, dm_residual)
 #'
-dist.goodness.of.fit <- function(dm, adjusted_dm) {
-  if (!is.dist(dm) || !is.dist(adjusted_dm)) {
-    stop("'dm' and 'adjusted_dm' must both be distance matrices of class 'dist'.")
+dist.goodness.of.fit <- function(dm, dm_residual = NULL, adjusted_dm = NULL) {
+  # adjusted_dm is retained as a compatibility alias from the first development
+  # version of this helper. New code should prefer dm_residual because the
+  # residual matrix may come from a factor, adjustment variables, or a full model.
+  if (!is.null(adjusted_dm)) {
+    if (!is.null(dm_residual)) {
+      stop("Provide only one of 'dm_residual' or 'adjusted_dm'.")
+    }
+    dm_residual <- adjusted_dm
   }
-  if (attr(dm, "Size") != attr(adjusted_dm, "Size")) {
-    stop("'dm' and 'adjusted_dm' must contain the same number of observations.")
+  if (is.null(dm_residual)) {
+    stop("'dm_residual' must be provided.")
+  }
+  if (!is.dist(dm) || !is.dist(dm_residual)) {
+    stop("'dm' and 'dm_residual' must both be distance matrices of class 'dist'.")
+  }
+  if (attr(dm, "Size") != attr(dm_residual, "Size")) {
+    stop("'dm' and 'dm_residual' must contain the same number of observations.")
   }
 
   # dist.sigma2() is proportional to distance-based total SS; the shared
   # sample-size scaling cancels in SS_residual / SS_total.
   ss_total <- dist.sigma2(dm)
-  ss_residual <- dist.sigma2(adjusted_dm)
-  ## if ss_total == 0, the original dist matrix has no total var to explain. 
-  ## In other words, all pairwise distances are 0 and the equation would be undefined. 
-  ## This prevents NaN from being output, with _real_ keeping the results as a numeric missing value. 
+  ss_residual <- dist.sigma2(dm_residual)
+
+  # If all original distances are zero, the total variation denominator is zero,
+  # so the pseudo-R2 is undefined rather than 0.
   goodness.of.fit <- if (ss_total == 0) NA_real_ else 1 - (ss_residual / ss_total)
-  attr(goodness.of.fit, "names") <- "goodness-of-fit coefficient of determination (R\u00B2)"
+  attr(goodness.of.fit, "names") <- "distance-based pseudo-R\u00B2"
   goodness.of.fit
 }
 
@@ -184,9 +209,17 @@ dist.cohen.d <- function(dm, f) {
 #'   parent frame will be used.
 #' @param tol Tolerance for eigenvalues. This is the cutoff for the eigenvalues
 #'   to be considered zero. Default is 10^-8.
+#' @param distance.diagnostics Logical indicating whether to attach a compact
+#'   diagnostic summary of the eigendecomposition used to reconstruct the
+#'   residual distance matrix. Default is \code{TRUE}.
+#' @param keep.eigenvalues Logical indicating whether to store the raw
+#'   eigenvalues in the diagnostic summary. Default is \code{FALSE} to keep
+#'   repeated simulations and large analyses memory-light.
 #'
 #' @return Returns a distance matrix of class \code{dist} representing the
-#'   Euclidean distances
+#'   Euclidean distances. When \code{distance.diagnostics = TRUE}, the returned
+#'   object has a \code{"distance.diagnostics"} attribute containing one row of
+#'   eigenvalue diagnostics.
 #'
 #' @details The \code{a.dist()} function only requires a right-hand side of the
 #'   formula. Instead of the left-hand side, it uses the dissimilarity distance
@@ -194,6 +227,41 @@ dist.cohen.d <- function(dm, f) {
 #'   right-hand side (RHS) of the formula. After performing necessary matrix
 #'   operations and eigen-decomposition, it calculates the Euclidean distances.
 #'   It preserves the labels of the input dm.
+#'
+#'   During reconstruction, eigenvalues with \code{abs(lambda) < tol} are
+#'   treated as zero, and remaining negative eigenvalues are set to zero before
+#'   distances are recomputed. The \code{"distance.diagnostics"} attribute records
+#'   how many eigenvalues were positive, negative, treated as zero by
+#'   \code{tol}, and removed as negative after tolerance handling. These
+#'   diagnostics describe construction of the residual distance matrix and are
+#'   separate from goodness-of-fit statistics such as pseudo-\eqn{R^2}. If
+#'   \code{keep.eigenvalues = TRUE}, the diagnostics also include the raw
+#'   eigenvalues before tolerance and negative-value zeroing.
+#'
+#'   The diagnostic fields include:
+#'   \itemize{
+#'     \item \code{role}: how \code{WdS.test()} used the matrix, if applicable;
+#'     direct \code{a.dist()} calls leave this as \code{NA}.
+#'     \item \code{formula} and \code{tol}: the formula and tolerance used.
+#'     \item \code{n.eigenvalues}: number of eigenvalues from the decomposition.
+#'     \item \code{n.positive.raw}, \code{n.negative.raw}, and
+#'     \code{n.zero.raw}: signs before tolerance handling.
+#'     \item \code{n.zeroed.by.tol}: eigenvalues with
+#'     \code{abs(lambda) < tol}, including exact zeros.
+#'     \item \code{n.positive.zeroed.by.tol} and
+#'     \code{n.negative.zeroed.by.tol}: positive and negative raw eigenvalues
+#'     counted in \code{n.zeroed.by.tol}.
+#'     \item \code{n.negative.removed}: negative eigenvalues remaining after
+#'     tolerance handling, which are set to zero before reconstruction.
+#'     \item \code{n.positive.retained} and \code{n.zero.final}: counts after
+#'     tolerance and negative-value zeroing.
+#'     \item \code{min.eigenvalue}, \code{max.eigenvalue},
+#'     \code{sum.positive.raw}, \code{sum.negative.raw},
+#'     \code{sum.negative.magnitude.raw}, and \code{prop.negative.raw}: compact
+#'     summaries of the raw eigenspectrum.
+#'     \item \code{eigenvalues}: optional raw eigenvalue vector, present only
+#'     when \code{keep.eigenvalues = TRUE}.
+#'   }
 #'
 #'   This function refactors and generalizes functionality from
 #'   \code{aPCoA::aPCoA()} function in the aPCoA package.
@@ -226,9 +294,16 @@ dist.cohen.d <- function(dm, f) {
 #' # Create the adjusted distance matrix 'a.dm'
 #' a.dm <- a.dist(dm=dm, formula=formula, formula_data=mtcars)
 #' a.dm
+#' attr(a.dm, "distance.diagnostics")
 #'
-a.dist = function(dm, formula, formula_data=parent.frame(), tol=10^-8)
+a.dist = function(dm, formula, formula_data=parent.frame(), tol=10^-8,
+                  distance.diagnostics = TRUE, keep.eigenvalues = FALSE)
 {
+  .validate_distance_diagnostic_options(distance.diagnostics, keep.eigenvalues)
+  if (!is.numeric(tol) || length(tol) != 1 || is.na(tol) || tol < 0) {
+    stop("'tol' must be a single non-negative numeric value.")
+  }
+
   data <- .as_formula_data(formula_data)
   Terms <- stats::terms(formula, data = data)
   # lhs <- formula[[2]]
@@ -261,9 +336,10 @@ a.dist = function(dm, formula, formula_data=parent.frame(), tol=10^-8)
   E <- (E + t(E))/2
 
   eig <- eigen(E)
-  lambda <- eig$values
+  lambda_raw <- eig$values
+  lambda <- lambda_raw
 
-  below_tol <- abs(lambda) < tol
+  below_tol <- abs(lambda_raw) < tol
   if (any(below_tol)) {
     message(paste(
       sum(below_tol), "out of", length(lambda),
@@ -287,5 +363,74 @@ a.dist = function(dm, formula, formula_data=parent.frame(), tol=10^-8)
   w <- t(t(eig$vectors) * sqrt(lambda))
   w <- stats::dist(w)
   attr(w, "Labels") <- attr(lhs, "Labels")
+  if (isTRUE(distance.diagnostics)) {
+    # Diagnostics are stored as metadata on the residual distance object. This
+    # keeps a.dist() users informed without changing the dist values themselves.
+    attr(w, "distance.diagnostics") <- .make_distance_diagnostics(
+      lambda.raw = lambda_raw,
+      lambda.final = lambda,
+      formula = formula,
+      tol = tol,
+      keep.eigenvalues = keep.eigenvalues
+    )
+  }
   return(w)
+}
+
+.validate_distance_diagnostic_options <- function(distance.diagnostics, keep.eigenvalues) {
+  if (!is.logical(distance.diagnostics) ||
+      length(distance.diagnostics) != 1 ||
+      is.na(distance.diagnostics)) {
+    stop("'distance.diagnostics' must be TRUE or FALSE.")
+  }
+  if (!is.logical(keep.eigenvalues) ||
+      length(keep.eigenvalues) != 1 ||
+      is.na(keep.eigenvalues)) {
+    stop("'keep.eigenvalues' must be TRUE or FALSE.")
+  }
+  if (isTRUE(keep.eigenvalues) && !isTRUE(distance.diagnostics)) {
+    stop("'keep.eigenvalues = TRUE' requires 'distance.diagnostics = TRUE'.")
+  }
+}
+
+.make_distance_diagnostics <- function(lambda.raw, lambda.final, formula, tol,
+                                       keep.eigenvalues = FALSE) {
+  raw.positive <- lambda.raw > 0
+  raw.negative <- lambda.raw < 0
+  raw.zero <- lambda.raw == 0
+  below.tol <- abs(lambda.raw) < tol
+  total.magnitude <- sum(abs(lambda.raw))
+  negative.magnitude <- sum(abs(lambda.raw[raw.negative]))
+
+  diagnostics <- data.frame(
+    role = NA_character_,
+    formula = paste(deparse(formula), collapse = ""),
+    tol = tol,
+    n.eigenvalues = length(lambda.raw),
+    n.positive.raw = sum(raw.positive),
+    n.negative.raw = sum(raw.negative),
+    n.zero.raw = sum(raw.zero),
+    n.zeroed.by.tol = sum(below.tol),
+    n.positive.zeroed.by.tol = sum(raw.positive & below.tol),
+    n.negative.zeroed.by.tol = sum(raw.negative & below.tol),
+    n.negative.removed = sum(raw.negative & !below.tol),
+    n.positive.retained = sum(lambda.final > 0),
+    n.zero.final = sum(lambda.final == 0),
+    min.eigenvalue = min(lambda.raw),
+    max.eigenvalue = max(lambda.raw),
+    sum.positive.raw = sum(lambda.raw[raw.positive]),
+    sum.negative.raw = sum(lambda.raw[raw.negative]),
+    sum.negative.magnitude.raw = negative.magnitude,
+    prop.negative.raw = if (total.magnitude == 0) NA_real_ else negative.magnitude / total.magnitude,
+    keep.eigenvalues = isTRUE(keep.eigenvalues),
+    stringsAsFactors = FALSE
+  )
+
+  if (isTRUE(keep.eigenvalues)) {
+    # Store raw eigenvalues only when requested. They can be useful for deep
+    # diagnosis but add memory cost when many tests are retained.
+    diagnostics$eigenvalues <- I(list(lambda.raw))
+  }
+
+  diagnostics
 }

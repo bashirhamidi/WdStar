@@ -2,27 +2,43 @@
 % Please edit documentation in R/dist_utils.R
 \name{dist.goodness.of.fit}
 \alias{dist.goodness.of.fit}
-\title{Calculate Goodness-of-Fit for Adjusted Distance Matrices}
+\title{Calculate Distance-Based Pseudo-R-Squared for Residual Distances}
 \usage{
-dist.goodness.of.fit(dm, adjusted_dm)
+dist.goodness.of.fit(dm, dm_residual = NULL, adjusted_dm = NULL)
 }
 \arguments{
 \item{dm}{The original/raw distance matrix.}
 
-\item{adjusted_dm}{The adjusted/residual distance matrix.}
+\item{dm_residual}{A residual distance matrix after removing a model
+component, such as a grouping factor, adjustment variables, or their full
+model.}
+
+\item{adjusted_dm}{Optional compatibility alias for \code{dm_residual}.}
 }
 \value{
-Goodness-of-fit coefficient of determination (\eqn{R^2})
+Distance-based pseudo-\eqn{R^2}. Returns \code{NA_real_} when the
+  original distance matrix has zero total variation.
 }
 \description{
-This function computes the coefficient of determination (\eqn{R^2}) by
-comparing total variation in a raw distance matrix with residual variation in
-an adjusted distance matrix.
+This function computes a distance-based pseudo-coefficient of determination
+(pseudo-\eqn{R^2}) by comparing total variation in a raw distance matrix with
+residual variation in another distance matrix.
+}
+\details{
+Let \eqn{V(D) = [N(N-1)]^{-1}\sum_{i<j} d_{ij}^2}. The returned
+  diagnostic is
+  \deqn{R^2_{pseudo} = 1 - V(D_{residual}) / V(D_{original}).}
+  The shared sample-size factor cancels in the ratio. This is a
+  distance-based variation-reduction diagnostic, not ordinary least-squares
+  \eqn{R^2} for a univariate response. Values near zero indicate little
+  reduction in distance variation, larger positive values indicate greater
+  reduction, and negative values may occur when the residual distance matrix
+  has more variation than the original distance matrix.
 }
 \examples{
 data(mtcars)
 dm <- dist(mtcars[1:3], method = "euclidean")
-adjusted_dm <- a.dist(dm, formula = ~ wt, formula_data = mtcars)
-dist.goodness.of.fit(dm, adjusted_dm)
+dm_residual <- a.dist(dm, formula = ~ wt, formula_data = mtcars)
+dist.goodness.of.fit(dm, dm_residual)
 
 }

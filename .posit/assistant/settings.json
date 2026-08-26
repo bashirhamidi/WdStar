@@ -1,0 +1,10 @@
+{
+  "permission": {
+    "webfetch": {
+      "https://github.com/*": "allow"
+    },
+    "edit": {
+      "*.R": "allow"
+    }
+  }
+}

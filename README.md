@@ -32,6 +32,10 @@
 - [Alekseyenko AV. Multivariate Welch t-test on distances. *Bioinformatics*. 2016.](https://doi.org/10.1093/bioinformatics/btw524) 
 - [Code repository](https://github.com/alekseyenko/Tw2)
 
+## Methods Knowledge Base
+
+See the [goodness-of-fit and covariate-adjustment methods inventory](https://github.com/alekseyenko/WdStar/blob/main/docs/goodness-of-fit-methods-knowledge-base.md) for implementation notes and comparisons with vegan, fast.adonis, DISTLM, MultANOVA, and microbiome-analysis packages.
+
 ## Installation  
 Source installation of the `WdStar` R package is available directly from GitHub using `remotes` for R 3.6 or later:
 ```R
@@ -70,6 +74,14 @@ f <- factor(mtcars$gear)
 #############################################
 WdS.test(dm=dm, f=f)
 
+## By default, the unadjusted test's goodness.of.fit reports the
+## distance-based pseudo-R-squared for the tested factor.
+unadjusted_res <- WdS.test(dm=dm, f=f)
+unadjusted_res$goodness.of.fit
+
+## Use goodness="none" to skip goodness-of-fit calculations.
+WdS.test(dm=dm, f=f, goodness="none")
+
 # Stratified example ########################
 #############################################
 strata <- factor(mtcars$vs)
@@ -83,15 +95,44 @@ formula <- ~ wt + as.factor(am)
 ## Adjustment example 1: pass unadjusted `dm` and formula to WdS.test()
 WdS.test(dm=dm, f=f, formula=formula, formula_data=mtcars) ## Perform adjusted test
 
-## Note that the output includes goodness.of.fit computed from raw and adjusted  
-##  distances, which can be used to assess the impact of adjustment on the data.  
+## By default, goodness.of.fit reports the distance-based semi-partial
+## pseudo-R-squared for the tested factor after adjustment.
+## Additional components computed along the way are stored but not printed.
+res <- WdS.test(dm=dm, f=f, formula=formula, formula_data=mtcars)
+res$goodness.components
+
+## Eigenvalue and tolerance diagnostics for residual distance matrices are
+## stored separately from goodness-of-fit values.
+res$distance.diagnostics
+
+## Request all available goodness-of-fit components, including factor-only,
+## adjustment-only, full-model, semi-partial, and partial pseudo-R-squared.
+WdS.test(dm=dm, f=f, formula=formula, formula_data=mtcars, goodness="all")
+
+## Interpretation of adjusted components:
+## - adjustment: variation explained by the adjustment variables alone.
+## - full: variation explained jointly by adjustment variables and the tested factor.
+## - semi.partial: additional total variation explained by the tested factor after adjustment.
+## - partial: adjustment-residual variation explained by the tested factor.
+## Negative values can occur if the residual distances contain more variation
+## than the original distance matrix.
 
 ## Adjustment example 2: Create the adjusted distance matrix `a.dm` outside the function
 a.dm <- a.dist(dm=dm, formula=formula, formula_data=mtcars) 
-WdS.test(dm=a.dm, f=f) ## Perform adjusted test with `a.dm`
+WdS.test(dm=a.dm, f=f) ## Perform adjusted test with `a.dm`; input diagnostics are preserved.
+attr(a.dm, "distance.diagnostics")
 
-## Goodness of fit can also be computed from raw and adjusted distances directly
-dist.goodness.of.fit(dm=dm, adjusted_dm=a.dm)
+## Store raw eigenvalues only when deeper diagnostics are needed.
+a.dm.with.eigenvalues <- a.dist(
+  dm=dm,
+  formula=formula,
+  formula_data=mtcars,
+  keep.eigenvalues=TRUE
+)
+length(attr(a.dm.with.eigenvalues, "distance.diagnostics")$eigenvalues[[1]])
+
+## Distance-based pseudo-R-squared can also be computed directly
+dist.goodness.of.fit(dm=dm, dm_residual=a.dm)
 ```
 
 Further examples are provided in the package documentation and may be accessed by running the following commands:

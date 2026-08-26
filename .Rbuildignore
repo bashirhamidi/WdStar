@@ -4,8 +4,12 @@
 ^\.Rproj\.user$
 ^LICENSE\.md$
 ^\.positai$
+^\.posit$
 ^\.github$
 ^\.DS_Store$
 ^tests/\.DS_Store$
 ^publications$
 ^shinyApp$
+^docs$
+^evaluate_simulated_distances\.R$
+^R2_comparison_v0\.4\.Rmd$

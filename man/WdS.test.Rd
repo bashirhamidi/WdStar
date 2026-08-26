@@ -11,7 +11,10 @@ WdS.test(
   strata = NULL,
   formula = NULL,
   formula_data = parent.frame(),
-  ...
+  ...,
+  goodness = "auto",
+  distance.diagnostics = TRUE,
+  keep.eigenvalues = FALSE
 )
 }
 \arguments{
@@ -26,20 +29,40 @@ the test will perform p-value computations using stratified permutation.
 Default is NULL.}
 
 \item{formula}{(optional) A right-hand side ONLY formula to be used with
-'formula_data' for confounder adjustment/elimination from `dm`. Results in
+\code{formula_data} for confounder adjustment/elimination from \code{dm}.
+Results in
 adjusted WdS statistic, omega-squared (\eqn{\omega^2}{\omega^2}) effect
-size estimate, goodness-of-fit coefficient of determination (\eqn{R^2}),
+size estimate, distance-based pseudo-\eqn{R^2},
 and p-value. Note that you may use any data type including factor,
 character, integer, and numeric. Default is NULL}
 
 \item{formula_data}{(optional) An environment, data frame, list, or object
 coercible to a data frame, such as \code{phyloseq::sample_data()}, to be
-used in conjunction with 'formula' for confounder adjustment. Default is
+used in conjunction with \code{formula} for confounder adjustment. Default is
 parent.frame()}
 
 \item{...}{Additional arguments passed to \code{\link{a.dist}()}, such as
-\code{tol} (tolerance for eigenvalues; default \code{1e-8}). Only used
-when \code{formula} is provided.}
+\code{tol} (tolerance for eigenvalues; default \code{1e-8}). These
+arguments are used when residual distance matrices are computed for
+adjustment or goodness-of-fit components.}
+
+\item{goodness}{Which distance-based pseudo-\eqn{R^2} goodness-of-fit
+component to report. Options are \code{"auto"}, \code{"factor.only"},
+\code{"adjustment"}, \code{"full"}, \code{"semi.partial"},
+\code{"partial"}, \code{"all"}, and \code{"none"}. The default
+\code{"auto"} reports \code{"factor.only"} for unadjusted tests and
+\code{"semi.partial"} for adjusted tests. Multiple explicit components may
+be requested with a character vector, except for \code{"auto"},
+\code{"all"}, and \code{"none"}. Use \code{"none"} to skip
+goodness-of-fit calculations.}
+
+\item{distance.diagnostics}{Logical indicating whether to store compact
+eigendecomposition diagnostics for residual distance matrices constructed
+inside \code{WdS.test()}. Default is \code{TRUE}.}
+
+\item{keep.eigenvalues}{Logical indicating whether to include raw eigenvalue
+vectors in \code{distance.diagnostics}. Default is \code{FALSE} to avoid
+extra memory use in large analyses and simulations.}
 }
 \value{
 A list containing:
@@ -48,10 +71,14 @@ A list containing:
   \item \code{data.name}: a string describing the input data.
   \item \code{statistic}: observed WdS test statistic.
   \item \code{estimate}: effect size estimator of variance, omega-squared (\eqn{\omega^2}{\omega^2}).
-  \item \code{goodness.of.fit}: goodness-of-fit coefficient of determination
-  (\eqn{R^2}), computed with \code{\link{dist.goodness.of.fit}} as
-  \eqn{1 - SS_{residual}/SS_{total}} for adjusted tests; \code{NULL} for
-  unadjusted tests.
+  \item \code{goodness.of.fit}: requested/default distance-based
+  pseudo-\eqn{R^2} component.
+  \item \code{goodness.components}: data frame of the goodness-of-fit
+  components computed while evaluating \code{goodness.of.fit}. This may
+  include intermediate values that are not printed by default.
+  \item \code{distance.diagnostics}: data frame of eigendecomposition
+  diagnostics for residual distance matrices constructed by \code{a.dist()},
+  or \code{NULL} when no diagnostics were collected.
   \item \code{p.value}: The p-value of the test.
   \item \code{parameter}: A list of 2-4 containing:
          \itemize{
@@ -76,12 +103,71 @@ Our approach can accommodate multi-level factors, stratification (via
 restricted permutations), multiple post-hoc testing scenarios, and covariate
 adjustment/ elimination (via projection of residuals).
 
-If optional covariate adjustment parameters (\code{`formula`}, and
-\code{`formula_data`}) are provided as input, they are passed to the \code{WdStar::a.dist()}
+If optional covariate adjustment parameters (\code{formula}, and
+\code{formula_data}) are provided as input, they are passed to the \code{WdStar::a.dist()}
 function to project residual matrices and remove the effect of specified
 covariate(s) from distance matrix \code{dm} before performing the test.
 Users may choose to make adjustments within the function or use \code{WdStar::a.dist()}
 outside the function and then pass on the adjusted distance matrix to \code{WdStar::WdS.test()}.
+
+Goodness-of-fit is reported as a distance-based pseudo-\eqn{R^2}. With
+\code{goodness = "auto"}, unadjusted tests report \code{factor.only}, the
+variation explained by the tested factor. Adjusted tests report
+\code{semi.partial}, the additional fraction of total distance variation
+explained by the tested factor after the adjustment variables. The
+\code{goodness.components} table stores components computed directly or
+derived from the residual distance matrices used for the requested
+calculation. For adjusted \code{"auto"} tests, this includes
+\code{adjustment}, \code{full}, \code{semi.partial}, and \code{partial}, but
+not \code{factor.only}, which requires an additional residual distance matrix.
+Values near zero indicate little distance-variation reduction, larger
+positive values indicate greater reduction, and negative values may occur
+when the residual distance matrix has more variation than the original
+distance matrix.
+
+Distance diagnostics are stored separately from goodness-of-fit. When
+\code{distance.diagnostics = TRUE}, \code{WdS.test()} collects the diagnostic
+summaries attached by \code{\link{a.dist}()} for each residual distance
+matrix it constructs, using roles such as \code{"adjustment"},
+\code{"factor.only"}, and \code{"full"}. These diagnostics record the
+tolerance used, how many eigenvalues were treated as zero by \code{tol}, and
+how many negative eigenvalues were removed during reconstruction. Use
+\code{keep.eigenvalues = TRUE} to store the raw eigenvalue vectors for deeper
+diagnosis; the default keeps only the compact summary.
+
+The diagnostic rows correspond to residual distance matrices actually
+constructed by the call. For example, an adjusted test with
+\code{goodness = "auto"} stores rows for \code{"adjustment"} and
+\code{"full"}; \code{"factor.only"} is added only when requested, such as
+with \code{goodness = "all"}. An unadjusted test with the default
+\code{goodness = "auto"} stores a \code{"factor.only"} row. If
+\code{goodness = "none"} and no adjustment formula is supplied, no residual
+distance matrix is constructed and \code{distance.diagnostics} is
+\code{NULL}, unless the input \code{dm} already carries diagnostics from a
+previous \code{a.dist()} call. In that case, the input diagnostics are
+preserved with role \code{"input"}.
+
+For adjustment variables \eqn{Z} and tested factor \eqn{F}, the components
+are interpreted as follows:
+\itemize{
+  \item \code{factor.only}: \eqn{R^2_F}, variation explained by \eqn{F}
+  alone, ignoring adjustment variables.
+  \item \code{adjustment}: \eqn{R^2_Z}, variation explained by \eqn{Z}
+  alone, ignoring \eqn{F}.
+  \item \code{full}: \eqn{R^2_{Z+F}}, variation explained by \eqn{Z} and
+  \eqn{F} together from one model formula.
+  \item \code{semi.partial}: \eqn{R^2_{Z+F} - R^2_Z}, the additional
+  fraction of total distance variation explained by \eqn{F} after \eqn{Z}.
+  \item \code{partial}: \eqn{(R^2_{Z+F} - R^2_Z)/(1 - R^2_Z)}, the fraction
+  of adjustment-residual variation explained by \eqn{F}.
+}
+The full-model residual matrix is computed from the original \code{dm} with
+a combined formula. It is not computed by applying \code{a.dist()} a second
+time to an already residualized distance matrix.
+When no adjustment formula is supplied, \code{adjustment} is unavailable; if
+requested, \code{full}, \code{semi.partial}, and \code{partial} reduce to the
+same value as \code{factor.only}. Use \code{goodness = "none"} to skip these
+additional goodness-of-fit calculations.
 }
 \examples{
 # The following is a simple example using the mtcars dataset to assess the
@@ -116,6 +202,13 @@ formula <- ~ wt + as.factor(am)
 
 ## Adjustment example 1: pass unadjusted `dm` and formula to WdS.test()
 WdS.test(dm=dm, f=f, formula=formula, formula_data=mtcars) ## Perform adjusted test
+
+## Inspect eigenvalue/tolerance diagnostics for constructed distance matrices
+res <- WdS.test(dm=dm, f=f, formula=formula, formula_data=mtcars)
+res$distance.diagnostics
+
+## Request all available goodness-of-fit components
+WdS.test(dm=dm, f=f, formula=formula, formula_data=mtcars, goodness="all")
 
 ## Adjustment example 2: Create the adjusted distance matrix `a.dm` outside
 ## the function

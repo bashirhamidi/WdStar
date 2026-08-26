@@ -4,7 +4,14 @@
 \alias{a.dist}
 \title{Covariate Adjusted Principal Coordinates Analysis}
 \usage{
-a.dist(dm, formula, formula_data = parent.frame(), tol = 10^-8)
+a.dist(
+  dm,
+  formula,
+  formula_data = parent.frame(),
+  tol = 10^-8,
+  distance.diagnostics = TRUE,
+  keep.eigenvalues = FALSE
+)
 }
 \arguments{
 \item{dm}{A distance matrix (any arbitrary distance or dissimilarity metric).}
@@ -22,10 +29,20 @@ parent frame will be used.}
 
 \item{tol}{Tolerance for eigenvalues. This is the cutoff for the eigenvalues
 to be considered zero. Default is 10^-8.}
+
+\item{distance.diagnostics}{Logical indicating whether to attach a compact
+diagnostic summary of the eigendecomposition used to reconstruct the
+residual distance matrix. Default is \code{TRUE}.}
+
+\item{keep.eigenvalues}{Logical indicating whether to store the raw
+eigenvalues in the diagnostic summary. Default is \code{FALSE} to keep
+repeated simulations and large analyses memory-light.}
 }
 \value{
 Returns a distance matrix of class \code{dist} representing the
-  Euclidean distances
+  Euclidean distances. When \code{distance.diagnostics = TRUE}, the returned
+  object has a \code{"distance.diagnostics"} attribute containing one row of
+  eigenvalue diagnostics.
 }
 \description{
 This function takes in a formula and distance matrix, adjusts for covariates,
@@ -38,6 +55,41 @@ The \code{a.dist()} function only requires a right-hand side of the
   right-hand side (RHS) of the formula. After performing necessary matrix
   operations and eigen-decomposition, it calculates the Euclidean distances.
   It preserves the labels of the input dm.
+
+  During reconstruction, eigenvalues with \code{abs(lambda) < tol} are
+  treated as zero, and remaining negative eigenvalues are set to zero before
+  distances are recomputed. The \code{"distance.diagnostics"} attribute records
+  how many eigenvalues were positive, negative, treated as zero by
+  \code{tol}, and removed as negative after tolerance handling. These
+  diagnostics describe construction of the residual distance matrix and are
+  separate from goodness-of-fit statistics such as pseudo-\eqn{R^2}. If
+  \code{keep.eigenvalues = TRUE}, the diagnostics also include the raw
+  eigenvalues before tolerance and negative-value zeroing.
+
+  The diagnostic fields include:
+  \itemize{
+    \item \code{role}: how \code{WdS.test()} used the matrix, if applicable;
+    direct \code{a.dist()} calls leave this as \code{NA}.
+    \item \code{formula} and \code{tol}: the formula and tolerance used.
+    \item \code{n.eigenvalues}: number of eigenvalues from the decomposition.
+    \item \code{n.positive.raw}, \code{n.negative.raw}, and
+    \code{n.zero.raw}: signs before tolerance handling.
+    \item \code{n.zeroed.by.tol}: eigenvalues with
+    \code{abs(lambda) < tol}, including exact zeros.
+    \item \code{n.positive.zeroed.by.tol} and
+    \code{n.negative.zeroed.by.tol}: positive and negative raw eigenvalues
+    counted in \code{n.zeroed.by.tol}.
+    \item \code{n.negative.removed}: negative eigenvalues remaining after
+    tolerance handling, which are set to zero before reconstruction.
+    \item \code{n.positive.retained} and \code{n.zero.final}: counts after
+    tolerance and negative-value zeroing.
+    \item \code{min.eigenvalue}, \code{max.eigenvalue},
+    \code{sum.positive.raw}, \code{sum.negative.raw},
+    \code{sum.negative.magnitude.raw}, and \code{prop.negative.raw}: compact
+    summaries of the raw eigenspectrum.
+    \item \code{eigenvalues}: optional raw eigenvalue vector, present only
+    when \code{keep.eigenvalues = TRUE}.
+  }
 
   This function refactors and generalizes functionality from
   \code{aPCoA::aPCoA()} function in the aPCoA package.
@@ -61,6 +113,7 @@ formula <- ~ as.factor(gear) + as.integer(hp) + wt
 # Create the adjusted distance matrix 'a.dm'
 a.dm <- a.dist(dm=dm, formula=formula, formula_data=mtcars)
 a.dm
+attr(a.dm, "distance.diagnostics")
 
 }
 \references{

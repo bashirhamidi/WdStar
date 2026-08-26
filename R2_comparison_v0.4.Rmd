@@ -1,0 +1,609 @@
+---
+title: "Distance-based $R^2$: a controlled comparison of joint and sequential calculations"
+author: "Bashir Hamidi"
+date: "`r format(Sys.Date(), '%B %d, %Y')`"
+output:
+  html_document:
+    encoding: UTF-8
+    code_folding: show
+    toc: true
+    toc_float: true
+    toc_depth: 3
+    number_sections: true
+    fig_caption: true
+    fig_width: 9
+    fig_height: 6
+    df_print: paged
+  pdf_document:
+    toc: true
+    toc_depth: 3
+editor_options:
+  chunk_output_type: inline
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE,
+  error = FALSE, cache = FALSE, dpi = 120)
+options(width = 100)
+set.seed(843)
+```
+
+```{css, echo=FALSE}
+#TOC { max-width: fit-content; white-space: nowrap; }
+div:has(> #TOC) { display: flex; flex-direction: row-reverse; }
+.callout { border-left: 4px solid #2c7fb8; background: #f3f8fb;
+  padding: 0.7em 1em; margin: 1em 0; }
+.warning { border-left-color: #d95f0e; background: #fff7ec; }
+```
+
+# Purpose and main conclusion
+
+This document uses one controlled simulated microbiome dataset as its running example.
+The observations and predictors stay fixed while the distance measure changes. This
+separates two issues that were difficult to distinguish in the original Enterotype
+example:
+
+1. **Sequential-projection issue:** fitting $Z$, reconstructing a residual distance,
+   and then fitting the original $F$ is not the standard nested comparison
+   $Z\subset Z+F$.
+2. **Negative-eigenvalue-removal issue:** `a.dist()` replaces negative eigenvalues of
+   each model-specific residual matrix with zero before reconstructing a Euclidean
+   distance. The resulting residual sums of squares need not partition the original
+   distance geometry.
+
+The first issue is general and remains even when the starting distance is Euclidean.
+The second depends on the distance measure. It is prominent for non-Euclidean inputs
+and disappears, apart from numerical rounding, for Euclidean inputs.
+
+The Enterotype data and the variables `SeqTech`, `Enterotype`, and `Age` are retained
+later as real-data illustrations rather than used to organize the document.
+
+<div class="callout warning">
+The recommended calculation is to obtain $TSS$, $RSS_Z$, and $RSS_{ZF}$ from one
+shared Gower matrix. The additional contribution of $F$ after $Z$ is the nested
+contrast $RSS_Z-RSS_{ZF}$. It is not obtained by calling `a.dist()` twice.
+</div>
+
+# Computational setup
+
+```{r installation, eval=FALSE}
+install.packages("remotes")
+remotes::install_github("bashirhamidi/WdStar")
+```
+
+```{r packages}
+library(WdStar)
+library(phyloseq)
+```
+
+The helper below inspects a centered Gower matrix before `a.dist()` removes negative
+eigenvalues. The negative absolute fraction is
+
+$$
+\frac{\sum_{\lambda_i<0}|\lambda_i|}{\sum_i|\lambda_i|}.
+$$
+
+```{r helpers}
+as_number <- function(x) unname(as.numeric(x))
+
+residual_eigen_summary <- function(dm, formula = NULL, data = NULL, tol = 1e-8) {
+  d2 <- as.matrix(dm)^2
+  n <- nrow(d2)
+  J <- diag(n) - matrix(1 / n, nrow = n, ncol = n)
+  G <- -0.5 * J %*% d2 %*% J
+  if (!is.null(formula)) {
+    mf <- model.frame(formula, data = data, drop.unused.levels = TRUE)
+    X <- model.matrix(formula, data = mf)
+    qx <- qr(X)
+    Q <- qr.Q(qx)[, seq_len(qx$rank), drop = FALSE]
+    M <- diag(n) - tcrossprod(Q)
+    G <- M %*% G %*% M
+  }
+  values <- eigen((G + t(G)) / 2, symmetric = TRUE, only.values = TRUE)$values
+  threshold <- tol * max(1, max(abs(values)))
+  positive <- values > threshold
+  negative <- values < -threshold
+  positive_sum <- sum(values[positive])
+  negative_sum <- sum(values[negative])
+  data.frame(
+    positive_n = sum(positive), negative_n = sum(negative),
+    near_zero_n = sum(!(positive | negative)), positive_sum = positive_sum,
+    negative_sum = negative_sum, signed_sum = positive_sum + negative_sum,
+    positive_only_sum = positive_sum,
+    negative_absolute_fraction =
+      abs(negative_sum) / (positive_sum + abs(negative_sum))
+  )
+}
+```
+
+# Definitions
+
+Let $TSS$ be the total distance-based sum of squares, $RSS_F$ the residual sum of
+squares from $F$ alone, $RSS_Z$ the residual sum of squares from $Z$ alone, and
+$RSS_{ZF}$ the residual sum of squares from the full model containing $Z$ and $F$.
+
+## Standalone, adjustment, and full-model fit
+
+$$
+R_F^2=1-\frac{RSS_F}{TSS},\qquad
+R_Z^2=1-\frac{RSS_Z}{TSS},\qquad
+R_{Z+F}^2=1-\frac{RSS_{ZF}}{TSS}.
+$$
+
+$R_F^2$ is the standalone fit of $F$. $R_Z^2$ is the adjustment-only fit.
+$R_{Z+F}^2$ is the collective fit of the full model and does not isolate $F$.
+
+## Additional contribution of $F$ after $Z$
+
+$$
+SS_{F\mid Z}=RSS_Z-RSS_{ZF}.
+$$
+
+The semi-partial contribution uses the original total variation:
+
+$$
+R_{\mathrm{semi},F\mid Z}^2
+=\frac{RSS_Z-RSS_{ZF}}{TSS}=R_{Z+F}^2-R_Z^2.
+$$
+
+It answers: after accounting for $Z$, what additional proportion of the *original*
+variation is explained by adding $F$?
+
+The partial contribution uses the variation remaining after $Z$:
+
+$$
+R_{\mathrm{partial},F\mid Z}^2
+=\frac{RSS_Z-RSS_{ZF}}{RSS_Z}
+=\frac{R_{Z+F}^2-R_Z^2}{1-R_Z^2}.
+$$
+
+It answers: of the variation *remaining after $Z$*, what proportion is explained by
+adding $F$? The cumulative fit is
+$R_Z^2+R_{\mathrm{semi},F\mid Z}^2=R_{Z+F}^2$.
+
+When $Z$ and $F$ overlap, sequential term contributions depend on entry order. A
+correctly computed final model with the same columns does not: joint and proper
+sequential fitting have the same $RSS_{ZF}$.
+
+# Primary running example: controlled simulation
+
+## Design
+
+The simulation has 120 samples and 100 taxa. Both $Z$ and $F$ are balanced binary
+variables, but they agree for 104 of the 120 samples. They are strongly, but not
+perfectly, associated. Taxon effects include structure shared by $Z$ and $F$,
+opposing effects that produce suppression, and additional $F$-specific structure.
+Counts are drawn at a depth of 5,000 reads per sample.
+
+This is a stress test chosen to make the computational differences visible. It is not
+intended to represent a typical microbiome effect size.
+
+```{r simulation}
+simulate_microbiome <- function(seed = 1103, n = 120L, taxa = 100L,
+  discordant_per_z_level = 8L, sequencing_depth = 5000L) {
+  set.seed(seed)
+  z01 <- rep(c(0, 1), each = n / 2L)
+  f01 <- z01
+  for (z_value in 0:1) {
+    candidates <- which(z01 == z_value)
+    flip <- sample(candidates, discordant_per_z_level)
+    f01[flip] <- 1L - f01[flip]
+  }
+  z_centered <- z01 - mean(z01)
+  f_centered <- f01 - mean(f01)
+  baseline <- rnorm(taxa, mean = -2.5, sd = 0.8)
+  beta_z <- beta_f <- numeric(taxa)
+  beta_z[1:15] <- 1; beta_z[16:30] <- -1
+  beta_f[1:15] <- -2; beta_f[16:30] <- 2
+  beta_f[31:45] <- 1; beta_f[46:60] <- -1
+
+  counts <- matrix(0L, nrow = taxa, ncol = n)
+  for (i in seq_len(n)) {
+    log_abundance <- baseline + z_centered[i] * beta_z +
+      f_centered[i] * beta_f + rnorm(taxa, sd = 0.4)
+    probabilities <- exp(log_abundance - max(log_abundance))
+    probabilities <- probabilities / sum(probabilities)
+    counts[, i] <- as.vector(rmultinom(1L, sequencing_depth, probabilities))
+  }
+  rownames(counts) <- paste0("Taxon", seq_len(taxa))
+  colnames(counts) <- paste0("Sample", seq_len(n))
+  metadata <- data.frame(
+    Z = factor(z01, labels = c("Z0", "Z1")),
+    F = factor(f01, labels = c("F0", "F1")), row.names = colnames(counts)
+  )
+  phyloseq(otu_table(counts, taxa_are_rows = TRUE), sample_data(metadata))
+}
+
+simulated_data <- simulate_microbiome()
+simulated_metadata <- data.frame(sample_data(simulated_data))
+simulated_otu <- as(otu_table(simulated_data), "matrix")
+if (taxa_are_rows(simulated_data)) simulated_otu <- t(simulated_otu)
+```
+
+## Why test the association between $Z$ and $F$?
+
+```{r simulation-association}
+simulated_fz_table <- table(Z = simulated_metadata$Z, F = simulated_metadata$F)
+simulated_chisq <- chisq.test(simulated_fz_table, correct = FALSE)
+simulated_cramers_v <- sqrt(as_number(simulated_chisq$statistic) /
+  (sum(simulated_fz_table) *
+     min(nrow(simulated_fz_table) - 1, ncol(simulated_fz_table) - 1)))
+
+knitr::kable(simulated_fz_table, caption = "Known simulated relationship between Z and F")
+knitr::kable(data.frame(
+  chi_squared = as_number(simulated_chisq$statistic),
+  degrees_of_freedom = as_number(simulated_chisq$parameter),
+  p_value = format.pval(simulated_chisq$p.value, digits = 3, eps = 0.001),
+  Cramers_V = simulated_cramers_v), digits = 4)
+```
+
+The chi-square test asks whether the cross-tabulation differs from independence. It
+does not test the distance matrix or microbiome model. Cramér's $V$ describes the
+strength of predictor association. Here $V=$
+`r sprintf("%.3f", simulated_cramers_v)`, confirming that the predictor spaces
+overlap while both variables remain estimable. This is the setting in which
+sequential allocation is consequential.
+
+# Why one pass and two passes are different
+
+Let $G$ be the Gower matrix obtained from the starting distance, and let $M_Z$ and
+$M_{ZF}$ be residual projectors. A joint full-model projection is
+
+$$E_{ZF}=M_{ZF}GM_{ZF}.$$
+
+A proper sequential analysis compares $Z\subset Z+F$ in this same geometry. The
+second step adds only the part of $F$ not represented by $Z$,
+$F_{\perp Z}=M_ZF$. The final residual is still $E_{ZF}$.
+
+The following two-pass code is different:
+
+```r
+D_Z <- a.dist(D, ~ Z, formula_data = metadata)
+a.dist(D_Z, ~ F, formula_data = metadata)
+```
+
+It reconstructs a new distance after fitting $Z$ and then fits the original $F$ to
+that changed response. Algebraically this resembles $M_FM_Z$, which is not generally
+$M_{ZF}$ when $F$ and $Z$ overlap. The projections do not generally commute.
+
+If $\Pi_+(A)$ means replacing negative eigenvalues with zero, the paths are
+
+$$\text{one pass: }\Pi_+(M_{ZF}GM_{ZF})$$
+
+and
+
+$$\text{two passes: }\Pi_+\{M_F\Pi_+(M_ZGM_Z)M_F\}.$$
+
+Once negative eigencomponents are removed after the first pass, the second pass
+cannot recover them.
+
+## What “removing negative eigenvalues” means
+
+If $E=U\Lambda U^{\mathsf T}$, `a.dist()` replaces
+$\lambda_i$ by $\lambda_i^+=\max(\lambda_i,0)$ and reconstructs a Euclidean
+distance from $U\Lambda_+U^{\mathsf T}$. Earlier drafts called this *truncation*.
+It does not remove samples, taxa, predictors, or pairwise distances. It removes the
+negative axes of the residual geometry.
+
+Before removal, residual SS is the signed trace
+
+$$\operatorname{tr}(E)=\sum_{\lambda_i>0}\lambda_i+
+\sum_{\lambda_i<0}\lambda_i.$$
+
+After removal, it becomes $\sum_{\lambda_i>0}\lambda_i$, a larger quantity whenever
+substantive negative eigenvalues were present. Model-specific reconstructed distances
+therefore need not partition the original $TSS$.
+
+# Bray--Curtis results for the simulation
+
+```{r simulation-bray-models}
+D_bray <- distance(simulated_data, method = "bray")
+D_bray_Z <- a.dist(D_bray, ~ Z, simulated_metadata)
+D_bray_full <- a.dist(D_bray, ~ Z + F, simulated_metadata)
+D_bray_two <- a.dist(D_bray_Z, ~ F, simulated_metadata)
+bray_adonis <- vegan::adonis2(D_bray ~ Z + F, data = simulated_metadata,
+  by = "terms", permutations = 999)
+
+bray_r2_z <- as_number(dist.goodness.of.fit(D_bray, D_bray_Z))
+bray_r2_one <- as_number(dist.goodness.of.fit(D_bray, D_bray_full))
+bray_r2_two <- as_number(dist.goodness.of.fit(D_bray, D_bray_two))
+bray_vegan_z <- as_number(bray_adonis["Z", "R2"])
+bray_vegan_semi <- as_number(bray_adonis["F", "R2"])
+bray_vegan_residual <- as_number(bray_adonis["Residual", "R2"])
+bray_vegan_full <- 1 - bray_vegan_residual
+
+bray_comparison <- data.frame(
+  quantity = c("Adjustment-only R2: Z", "Full/cumulative R2: Z + F",
+    "Semi-partial R2: F after Z", "Partial R2: F after Z",
+    "Residual proportion after full model"),
+  vegan_shared_geometry = c(bray_vegan_z, bray_vegan_full,
+    bray_vegan_semi, bray_vegan_semi / (1 - bray_vegan_z),
+    bray_vegan_residual),
+  WdStar_one_pass = c(bray_r2_z, bray_r2_one,
+    bray_r2_one - bray_r2_z,
+    (bray_r2_one - bray_r2_z) / (1 - bray_r2_z), 1 - bray_r2_one),
+  WdStar_two_pass = c(bray_r2_z, bray_r2_two,
+    bray_r2_two - bray_r2_z,
+    (bray_r2_two - bray_r2_z) / (1 - bray_r2_z), 1 - bray_r2_two)
+)
+knitr::kable(bray_comparison, digits = 4)
+```
+
+The WdStar one-pass and two-pass full-model coefficients differ by
+`r sprintf("%.4f", bray_r2_one - bray_r2_two)`. WdStar one-pass also differs from
+vegan because the one-pass residual matrix is reconstructed after negative
+eigenvalues are removed.
+
+```{r simulation-bray-eigenvalues}
+bray_eigen <- rbind(
+  original = residual_eigen_summary(D_bray),
+  z_before_removal = residual_eigen_summary(D_bray, ~ Z, simulated_metadata),
+  full_before_removal = residual_eigen_summary(D_bray, ~ Z + F, simulated_metadata),
+  second_pass = residual_eigen_summary(D_bray_Z, ~ F, simulated_metadata)
+)
+knitr::kable(data.frame(
+  matrix = c("Original Bray-Curtis",
+    "Z residual before negative eigenvalues are removed",
+    "Joint Z + F residual before negative eigenvalues are removed",
+    "F residual after reconstructed Z distance is supplied to pass 2"),
+  positive_eigenvalues = bray_eigen$positive_n,
+  negative_eigenvalues = bray_eigen$negative_n,
+  signed_sum = bray_eigen$signed_sum,
+  positive_only_sum = bray_eigen$positive_only_sum,
+  negative_absolute_fraction = bray_eigen$negative_absolute_fraction), digits = 5)
+```
+
+No substantive negative eigenvalues appear in the second-pass row because the first
+`a.dist()` call already removed them when it created `D_bray_Z`.
+
+# Does the conclusion change with JSD or Jaccard?
+
+The name of a method is not enough; the exact object passed to the model matters.
+
+- Bray--Curtis and quantitative Jaccard (Ružička for abundance data) can be
+  non-Euclidean.
+- `vegan::vegdist(..., method = "jaccard", binary = TRUE)` computes incidence
+  Jaccard. Jaccard is a metric, but its direct PCoA representation can contain
+  negative eigenvalues. In this simulation, its square root is Euclidean.
+- The installed `phyloseq` method `"jsd"` returns **Jensen--Shannon divergence**, not
+  its square root. Square-root Jensen--Shannon is the metric, Hilbert-space form.
+  Treating raw divergence as a distance causes the Gower calculation to square the
+  divergence again.
+
+```{r distance-sensitivity}
+evaluate_distance <- function(label, dm, metadata) {
+  D_Z <- a.dist(dm, ~ Z, metadata)
+  D_full <- a.dist(dm, ~ Z + F, metadata)
+  D_two <- a.dist(D_Z, ~ F, metadata)
+  ad <- vegan::adonis2(dm ~ Z + F, data = metadata,
+    by = "terms", permutations = 0)
+  r2_one <- as_number(dist.goodness.of.fit(dm, D_full))
+  r2_two <- as_number(dist.goodness.of.fit(dm, D_two))
+  vegan_full <- 1 - as_number(ad["Residual", "R2"])
+  data.frame(
+    distance_definition = label,
+    negative_absolute_fraction =
+      residual_eigen_summary(dm)$negative_absolute_fraction,
+    vegan_full_R2 = vegan_full,
+    WdStar_one_pass_full_R2 = r2_one,
+    WdStar_two_pass_full_R2 = r2_two,
+    one_pass_minus_vegan = r2_one - vegan_full,
+    one_pass_minus_two_pass = r2_one - r2_two)
+}
+
+D_quantitative_jaccard <- distance(simulated_data, method = "jaccard")
+D_binary_jaccard <- vegan::vegdist(simulated_otu,
+  method = "jaccard", binary = TRUE)
+D_js_divergence <- distance(simulated_data, method = "jsd")
+D_sqrt_js <- sqrt(D_js_divergence)
+D_sqrt_binary_jaccard <- sqrt(D_binary_jaccard)
+
+distance_sensitivity <- do.call(rbind, list(
+  evaluate_distance("Bray-Curtis", D_bray, simulated_metadata),
+  evaluate_distance("Quantitative Jaccard (Ruzicka)",
+    D_quantitative_jaccard, simulated_metadata),
+  evaluate_distance("Binary Jaccard", D_binary_jaccard, simulated_metadata),
+  evaluate_distance("phyloseq jsd: raw Jensen-Shannon divergence",
+    D_js_divergence, simulated_metadata),
+  evaluate_distance("Square-root Jensen-Shannon divergence",
+    D_sqrt_js, simulated_metadata),
+  evaluate_distance("Square-root binary Jaccard",
+    D_sqrt_binary_jaccard, simulated_metadata)
+))
+knitr::kable(distance_sensitivity, digits = 4)
+```
+
+The table separates the conclusions:
+
+1. **The two-pass problem does not disappear with a Euclidean distance.** For
+   square-root Jensen--Shannon, the negative fraction is zero and vegan agrees with
+   WdStar one-pass, yet one-pass and two-pass differ by
+   `r sprintf("%.4f", distance_sensitivity[5, "one_pass_minus_two_pass"])`.
+2. **Vegan versus WdStar one-pass disagreement tracks non-Euclidean geometry.** It is
+   absent for the two square-root distances here and present for Bray--Curtis,
+   quantitative Jaccard, binary Jaccard, and raw JSD.
+3. **Raw `phyloseq` JSD is unsuitable here without clarification.** It is the
+   divergence itself. Its negative fraction is
+   `r sprintf("%.3f", distance_sensitivity[4, "negative_absolute_fraction"])` and
+   its reconstructed-distance coefficient differs greatly from vegan's signed
+   pseudo-$R^2$. If Jensen--Shannon is desired, name and use the square-root form.
+4. **“Jaccard” must be labeled quantitative or binary.** They answer different
+   ecological questions. These simulated counts are dense, so binary Jaccard sees
+   much less modeled structure than abundance-sensitive distances.
+
+These values are properties of this simulation, not universal rankings. Changing the
+distance changes the response geometry, $TSS$, and every model $R^2$. The general
+rule is to inspect the exact definition and eigenvalues and calculate all nested sums
+of squares in one shared geometry.
+
+<div class="callout">
+Switching from Bray--Curtis to Jaccard or Jensen--Shannon does not rescue the naive
+two-pass algorithm. A Euclidean choice removes the negative-eigenvalue-removal part
+of the discrepancy, but it does not make fitting the original $F$ to a previously
+residualized distance equivalent to fitting $Z+F$.
+</div>
+
+# Lingoes-corrected Bray--Curtis as a diagnostic control
+
+If $\lambda_{\min}$ is the smallest eigenvalue of the original Gower matrix, Lingoes
+uses $c=\max(-\lambda_{\min},0)$ and
+
+$$d_{ij}^{\mathrm{Lingoes}}=\sqrt{d_{ij}^2+2c},\qquad i\ne j,$$
+
+with a zero diagonal. It changes all off-diagonal distances by one common rule and
+defines a new Euclidean response geometry. It does not recover or improve the
+original Bray--Curtis $R^2$. Here it is applied once, before either nested model, as a
+diagnostic control.
+
+```{r lingoes-control}
+lingoes_constant <- function(dm) {
+  d2 <- as.matrix(dm)^2
+  n <- nrow(d2)
+  J <- diag(n) - matrix(1 / n, nrow = n, ncol = n)
+  G <- -0.5 * J %*% d2 %*% J
+  values <- eigen((G + t(G)) / 2, symmetric = TRUE, only.values = TRUE)$values
+  max(-min(values), 0)
+}
+bray_lingoes_constant <- lingoes_constant(D_bray)
+D_bray_lingoes <- sqrt(D_bray^2 + 2 * bray_lingoes_constant)
+attr(D_bray_lingoes, "method") <- "Lingoes-corrected Bray-Curtis"
+lingoes_result <- evaluate_distance("Lingoes-corrected Bray-Curtis",
+  D_bray_lingoes, simulated_metadata)
+knitr::kable(rbind(
+  distance_sensitivity[distance_sensitivity$distance_definition == "Bray-Curtis", ],
+  lingoes_result), digits = 4)
+```
+
+After this one-time correction, vegan and WdStar one-pass agree because no
+substantive negative axes need removal. WdStar two-pass still differs. The projection
+problem therefore exists independently of the negative-eigenvalue problem.
+
+# Real-data illustrations
+
+The simulated data remain the primary example. This section shows how the same
+diagnostics apply to variables in the `enterotype` dataset.
+
+## Enterotype adjusted for sequencing technology
+
+```{r enterotype-data}
+data("enterotype")
+ent <- subset_samples(enterotype, !is.na(Enterotype) & !is.na(SeqTech))
+metadata <- data.frame(sample_data(ent))
+D_enterotype <- distance(ent, method = "bray")
+enterotype_table <- table(SeqTech = metadata$SeqTech,
+  Enterotype = metadata$Enterotype)
+enterotype_chisq <- suppressWarnings(chisq.test(enterotype_table, correct = FALSE))
+enterotype_cramers_v <- sqrt(as_number(enterotype_chisq$statistic) /
+  (sum(enterotype_table) *
+     min(nrow(enterotype_table) - 1, ncol(enterotype_table) - 1)))
+knitr::kable(enterotype_table, caption = "SeqTech by Enterotype")
+knitr::kable(data.frame(
+  chi_squared = as_number(enterotype_chisq$statistic),
+  degrees_of_freedom = as_number(enterotype_chisq$parameter),
+  p_value = format.pval(enterotype_chisq$p.value, digits = 3, eps = 0.001),
+  Cramers_V = enterotype_cramers_v), digits = 4)
+```
+
+This tests predictor association, not Bray--Curtis or microbiome model fit. It shows
+why term order and shared predictor information are relevant.
+
+```{r enterotype-comparison}
+D_ent_F <- a.dist(D_enterotype, ~ Enterotype, metadata)
+D_ent_Z <- a.dist(D_enterotype, ~ SeqTech, metadata)
+D_ent_full <- a.dist(D_enterotype, ~ SeqTech + Enterotype, metadata)
+D_ent_two <- a.dist(D_ent_Z, ~ Enterotype, metadata)
+ent_adonis <- vegan::adonis2(D_enterotype ~ SeqTech + Enterotype,
+  data = metadata, by = "terms", permutations = 999)
+ent_f_only <- vegan::adonis2(D_enterotype ~ Enterotype,
+  data = metadata, by = "terms", permutations = 999)
+
+ent_r2_f <- as_number(dist.goodness.of.fit(D_enterotype, D_ent_F))
+ent_r2_z <- as_number(dist.goodness.of.fit(D_enterotype, D_ent_Z))
+ent_r2_one <- as_number(dist.goodness.of.fit(D_enterotype, D_ent_full))
+ent_r2_two <- as_number(dist.goodness.of.fit(D_enterotype, D_ent_two))
+ent_vegan_f <- as_number(ent_f_only["Enterotype", "R2"])
+ent_vegan_z <- as_number(ent_adonis["SeqTech", "R2"])
+ent_vegan_semi <- as_number(ent_adonis["Enterotype", "R2"])
+ent_vegan_resid <- as_number(ent_adonis["Residual", "R2"])
+ent_vegan_full <- 1 - ent_vegan_resid
+
+enterotype_comparison <- data.frame(
+  quantity = c("Enterotype-only R2", "SeqTech adjustment-only R2",
+    "Full/cumulative R2: SeqTech + Enterotype",
+    "Semi-partial R2: Enterotype after SeqTech",
+    "Partial R2: Enterotype after SeqTech"),
+  vegan_shared_geometry = c(ent_vegan_f, ent_vegan_z, ent_vegan_full,
+    ent_vegan_semi, ent_vegan_semi / (1 - ent_vegan_z)),
+  WdStar_one_pass = c(ent_r2_f, ent_r2_z, ent_r2_one,
+    ent_r2_one - ent_r2_z,
+    (ent_r2_one - ent_r2_z) / (1 - ent_r2_z)),
+  WdStar_two_pass = c(NA, ent_r2_z, ent_r2_two,
+    ent_r2_two - ent_r2_z,
+    (ent_r2_two - ent_r2_z) / (1 - ent_r2_z)))
+knitr::kable(enterotype_comparison, digits = 4,
+  caption = "Same samples and Bray-Curtis distance: F = Enterotype; Z = SeqTech")
+```
+
+## Age as another adjustment variable
+
+`Age` is continuous, so a chi-square test and Cramér's $V$ are not appropriate. Group
+summaries can describe its relationship with `Enterotype`; the distance model uses
+the same shared-geometry nested comparison. This shows that the issue is not limited
+to two categorical variables.
+
+```{r age-illustration}
+ent_age <- subset_samples(enterotype, !is.na(Enterotype) & !is.na(Age))
+age_metadata <- data.frame(sample_data(ent_age))
+D_age <- distance(ent_age, method = "bray")
+age_summary <- aggregate(Age ~ Enterotype, data = age_metadata,
+  FUN = function(x) c(n = length(x), mean = mean(x), sd = sd(x)))
+age_summary <- data.frame(Enterotype = age_summary$Enterotype,
+  n = age_summary$Age[, "n"], mean_age = age_summary$Age[, "mean"],
+  sd_age = age_summary$Age[, "sd"])
+age_adonis <- vegan::adonis2(D_age ~ Age + Enterotype,
+  data = age_metadata, by = "terms", permutations = 999)
+knitr::kable(age_summary, digits = 2)
+knitr::kable(age_adonis, digits = 4)
+```
+
+With `Age` first, the `Enterotype` row is its semi-partial contribution after linear
+adjustment for age. A second call to `a.dist()` is still unnecessary.
+
+# $W_d^*$ is a separate result
+
+$W_d^*$ and `dist.goodness.of.fit()` are different statistics and should not be
+presented as interchangeable estimates.
+
+```{r wds-examples}
+WdS.test(dm = D_enterotype, f = metadata$Enterotype)
+dist.goodness.of.fit(D_enterotype, D_ent_F)
+WdS.test(dm = D_enterotype, f = metadata$Enterotype,
+  formula = ~ SeqTech, formula_data = metadata)
+```
+
+The goodness-of-fit value printed for the adjustment step describes the change from
+the original distance to the `SeqTech`-adjusted distance. It is $R_Z^2$, not the
+conditional contribution of `Enterotype` after `SeqTech`.
+
+# Conclusions and implementation direction
+
+1. Calculate $TSS$, $RSS_Z$, and $RSS_{ZF}$ from one shared Gower matrix.
+2. Report semi-partial $F$ after $Z$ as $(RSS_Z-RSS_{ZF})/TSS$, and partial $F$ after
+   $Z$ as $(RSS_Z-RSS_{ZF})/RSS_Z$.
+3. Do not use `a.dist(a.dist(D, ~ Z), ~ F)` as the standard sequential fit. Its final
+   residual generally differs from the joint residual even for a Euclidean distance.
+4. Label the exact distance: quantitative versus binary Jaccard, and raw
+   Jensen--Shannon divergence versus its square-root distance.
+5. Diagnose negative eigenvalues. If Euclidification is desired, apply one declared
+   correction to the original distance before fitting every nested model.
+6. Changing distance changes the scientific target and numerical behavior.
+   Bray--Curtis emphasizes abundance differences, binary Jaccard presence/absence,
+   and Jensen--Shannon relative-abundance distributions.
+7. Residual distances may be useful for visualization, but model $R^2$ should use a
+   shared signed geometry rather than separately reconstructed residual distances.
+
+# Session information
+
+```{r session-information}
+sessionInfo()
+```
