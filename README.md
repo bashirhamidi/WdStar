@@ -53,52 +53,56 @@ Until a CRAN release is available, install `WdStar` from GitHub as shown above.
 For detailed and complex examples please refer to [our publication repositories](https://github.com/alekseyenko?tab=readme-ov-file#peer-reviewed-publications-on-the-w_d-test-family), which contain Markdown files with application datasets and code.
 
 
-The following is a simple example using the `mtcars` dataset to assess the effect of `gear` on `mpg`, `cyl`, and `disp` (first three variables of the dataset):   
+The following example uses the `phyloseq::enterotype` microbiome dataset to test whether community composition differs by enterotype using Bray-Curtis distances. The main examples use the full enterotype analysis set after removing samples with missing `Enterotype`.
 
 ```R
-# Load dataset
-data(mtcars)
+# Load packages and example microbiome data.
+library(WdStar)
+library(phyloseq)
+data("enterotype", package = "phyloseq")
 
-# The outcome could be a single variable or multiple variables (such as multidimensional omics data).  
+# Use all samples with observed Enterotype.
+ent <- subset_samples(enterotype, !is.na(Enterotype))
+dm <- distance(ent, method = "bray")
+meta <- data.frame(sample_data(ent))
+f <- factor(meta$Enterotype)
 
-### This is an example of outcome with a single variable (`mpg`):
-dm <- dist(mtcars$mpg, method="euclidean")
+# Basic multivariate test.
+WdS.test(dm = dm, f = f)
 
-### This is an example of outcome with multiple variables (`mpg`, `cyl`, and `disp`):
-dm <- dist(mtcars[1:3], method="euclidean") 
-
-# Grouping/independent variable. You could use multiple variables here too.
-f <- factor(mtcars$gear)
-
-# Basic multivariate test example ###########
-#############################################
-WdS.test(dm=dm, f=f)
-
-## By default, the unadjusted test's goodness.of.fit reports the
-## distance-based pseudo-R-squared for the tested factor.
-unadjusted_res <- WdS.test(dm=dm, f=f)
+## By default, the unadjusted test's goodness.of.fit reports the distance-based
+## pseudo-R-squared for the tested factor.
+unadjusted_res <- WdS.test(dm = dm, f = f)
 unadjusted_res$goodness.of.fit
 
-## Use goodness="none" to skip goodness-of-fit calculations.
-WdS.test(dm=dm, f=f, goodness="none")
+## Use goodness = "none" to skip goodness-of-fit calculations.
+WdS.test(dm = dm, f = f, goodness = "none")
 
-# Stratified example ########################
-#############################################
-strata <- factor(mtcars$vs)
-WdS.test(dm=dm, f=f, strata=strata)
+# Stratified permutation example.
+## This restricts permutations within sequencing technology. It is shown as a
+## separate design choice from adjustment by SeqTech below.
+WdS.test(dm = dm, f = f, strata = factor(meta$SeqTech))
 
 # Covariate adjustment/elimination examples #
 #############################################
-## Right-hand side adjustment formula to specify adjustment covariates. 
-formula <- ~ wt + as.factor(am) 
-
-## Adjustment example 1: pass unadjusted `dm` and formula to WdS.test()
-WdS.test(dm=dm, f=f, formula=formula, formula_data=mtcars) ## Perform adjusted test
+## Adjustment example 1: pass unadjusted `dm` and an adjustment formula to
+## WdS.test(). Here SeqTech is a categorical covariate.
+WdS.test(
+  dm = dm,
+  f = f,
+  formula = ~ SeqTech,
+  formula_data = sample_data(ent)
+)
 
 ## By default, goodness.of.fit reports the distance-based semi-partial
 ## pseudo-R-squared for the tested factor after adjustment.
 ## Additional components computed along the way are stored but not printed.
-res <- WdS.test(dm=dm, f=f, formula=formula, formula_data=mtcars)
+res <- WdS.test(
+  dm = dm,
+  f = f,
+  formula = ~ SeqTech,
+  formula_data = sample_data(ent)
+)
 res$goodness.components
 
 ## Eigenvalue and tolerance diagnostics for residual distance matrices are
@@ -107,7 +111,13 @@ res$distance.diagnostics
 
 ## Request all available goodness-of-fit components, including factor-only,
 ## adjustment-only, full-model, semi-partial, and partial pseudo-R-squared.
-WdS.test(dm=dm, f=f, formula=formula, formula_data=mtcars, goodness="all")
+WdS.test(
+  dm = dm,
+  f = f,
+  formula = ~ SeqTech,
+  formula_data = sample_data(ent),
+  goodness = "all"
+)
 
 ## Interpretation of adjusted components:
 ## - adjustment: variation explained by the adjustment variables alone.
@@ -117,62 +127,65 @@ WdS.test(dm=dm, f=f, formula=formula, formula_data=mtcars, goodness="all")
 ## Negative values can occur if the residual distances contain more variation
 ## than the original distance matrix.
 
-## Adjustment example 2: Create the adjusted distance matrix `a.dm` outside the function
-a.dm <- a.dist(dm=dm, formula=formula, formula_data=mtcars) 
-WdS.test(dm=a.dm, f=f) ## Perform adjusted test with `a.dm`; input diagnostics are preserved.
+## Continuous covariates can also be used. Age has many missing values in
+## enterotype, so this example builds a matching Age-complete distance matrix.
+ent_age <- subset_samples(enterotype, !is.na(Enterotype) & !is.na(Age))
+dm_age <- distance(ent_age, method = "bray")
+meta_age <- data.frame(sample_data(ent_age))
+
+WdS.test(
+  dm = dm_age,
+  f = factor(meta_age$Enterotype),
+  formula = ~ Age,
+  formula_data = sample_data(ent_age)
+)
+
+## Adjustment example 2: create the adjusted distance matrix `a.dm` outside the
+## function, then pass it to WdS.test().
+a.dm <- a.dist(
+  dm = dm,
+  formula = ~ SeqTech,
+  formula_data = sample_data(ent)
+)
+WdS.test(dm = a.dm, f = f)
 attr(a.dm, "distance.diagnostics")
 
 ## Store raw eigenvalues only when deeper diagnostics are needed.
 a.dm.with.eigenvalues <- a.dist(
-  dm=dm,
-  formula=formula,
-  formula_data=mtcars,
-  keep.eigenvalues=TRUE
+  dm = dm,
+  formula = ~ SeqTech,
+  formula_data = sample_data(ent),
+  keep.eigenvalues = TRUE
 )
 length(attr(a.dm.with.eigenvalues, "distance.diagnostics")$eigenvalues[[1]])
 
 ## Distance-based pseudo-R-squared can also be computed directly
-dist.goodness.of.fit(dm=dm, dm_residual=a.dm)
+dist.goodness.of.fit(dm = dm, dm_residual = a.dm)
 
 ## Taxa/ASV importance can be ranked by adjusting for one taxon at a time.
-## The abundance values are used exactly as supplied.
-taxa_table <- data.frame(
-  ASV1 = mtcars$wt,
-  ASV2 = mtcars$hp,
-  ASV3 = mtcars$qsec,
-  row.names = rownames(mtcars)
+## The abundance values are used exactly as supplied. This full-dataset scan
+## loops over all taxa in enterotype, so it may take longer than a single test.
+taxa_rank <- WdS.taxa.importance(
+  dm = dm,
+  f = f,
+  physeq = ent,
+  nrep = 9
 )
-taxonomy_table <- data.frame(
-  Genus = c("TaxonA", "TaxonB", "TaxonC"),
-  Species = c("species1", "species2", "species3"),
-  row.names = colnames(taxa_table)
-)
-WdS.taxa.importance(
-  dm=dm,
-  f=f,
-  taxa_table=taxa_table,
-  taxa_are_rows=FALSE,
-  taxonomy_table=taxonomy_table,
-  nrep=9
-)
+head(taxa_rank[, c("taxon", "Genus", "rank", "importance", "p.value"),
+               with = FALSE])
 
 ## Add sample-level terms to every taxon-specific adjustment model.
-## For example, this evaluates each taxon together with a paired subject term.
-sample_data <- data.frame(
-  Subject_ID = factor(rep(seq_len(16), each = 2)),
-  row.names = rownames(mtcars)
+taxa_rank_seqtech <- WdS.taxa.importance(
+  dm = dm,
+  f = f,
+  physeq = ent,
+  formula = ~ SeqTech,
+  formula_data = sample_data(ent),
+  rank.by = "adjustment.goodness.of.fit",
+  nrep = 9
 )
-WdS.taxa.importance(
-  dm=dm,
-  f=f,
-  taxa_table=taxa_table,
-  taxa_are_rows=FALSE,
-  taxonomy_table=taxonomy_table,
-  formula=~ Subject_ID,
-  formula_data=sample_data,
-  rank.by="adjustment.goodness.of.fit",
-  nrep=9
-)
+head(taxa_rank_seqtech[, c("taxon", "Genus", "rank", "importance"),
+                       with = FALSE])
 ```
 
 Further examples are provided in the package documentation and may be accessed by running the following commands:

@@ -1,3 +1,20 @@
+# WdStar 2.5.1 2026-09-09
+
+* Replaced remaining `mtcars`, random-matrix, and placeholder examples in the
+  package documentation with `phyloseq::enterotype` microbiome examples.
+  Examples now use Bray-Curtis distances, `Enterotype` as the tested factor,
+  `SeqTech` as a categorical adjustment or stratification variable in separate
+  examples, and an Age-complete subset when demonstrating continuous covariate
+  adjustment.
+
+* Polished help-file wording for low-level statistic and distance helpers,
+  including clarifying that `Tw2()` and `WdS()` compute raw statistics while
+  `Tw2.test()`, `WdS.test()`, and the generic test wrapper perform permutation
+  testing.
+
+* Corrected the documented return value of `dist.group.sigma2()` from a
+  diagonal matrix to the named numeric vector returned by the function.
+
 # WdStar 2.5.0 2026-08-26
 
 * Added `dist.goodness.of.fit()` to compute a distance-based pseudo-coefficient

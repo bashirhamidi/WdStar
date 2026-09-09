@@ -66,16 +66,27 @@ Larger values indicate that removing the feature caused a larger decrease in
 the variation explained by the adjustment formula.
 }
 \examples{
-data(mtcars)
-dm <- dist(mtcars[1:3], method = "euclidean")
-f <- factor(mtcars$gear)
-WdS.feature.importance(
-  dm = dm,
-  f = f,
-  formula = ~ wt + as.factor(am),
-  formula_data = mtcars,
-  nrep = 9
-)
+if (requireNamespace("phyloseq", quietly = TRUE)) {
+  data("enterotype", package = "phyloseq")
+
+  ## Age is missing for many enterotype samples, so use a matching
+  ## complete-case distance matrix when ranking Age and Gender.
+  ent <- phyloseq::subset_samples(
+    enterotype,
+    !is.na(Enterotype) & !is.na(Age) & !is.na(Gender)
+  )
+  dm <- phyloseq::distance(ent, method = "bray")
+  meta <- data.frame(phyloseq::sample_data(ent))
+  f <- factor(meta$Enterotype)
+
+  WdS.feature.importance(
+    dm = dm,
+    f = f,
+    formula = ~ Gender + Age,
+    formula_data = phyloseq::sample_data(ent),
+    nrep = 9
+  )
+}
 }
 \seealso{
 \code{\link{WdS.test}}, \code{\link{dist.goodness.of.fit}}

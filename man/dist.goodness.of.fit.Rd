@@ -36,9 +36,17 @@ Let \eqn{V(D) = [N(N-1)]^{-1}\sum_{i<j} d_{ij}^2}. The returned
   has more variation than the original distance matrix.
 }
 \examples{
-data(mtcars)
-dm <- dist(mtcars[1:3], method = "euclidean")
-dm_residual <- a.dist(dm, formula = ~ wt, formula_data = mtcars)
-dist.goodness.of.fit(dm, dm_residual)
+if (requireNamespace("phyloseq", quietly = TRUE)) {
+  data("enterotype", package = "phyloseq")
+  ent <- phyloseq::subset_samples(enterotype, !is.na(Enterotype))
+  dm <- phyloseq::distance(ent, method = "bray")
+
+  dm_residual <- a.dist(
+    dm = dm,
+    formula = ~ SeqTech,
+    formula_data = phyloseq::sample_data(ent)
+  )
+  dist.goodness.of.fit(dm, dm_residual)
+}
 
 }

@@ -2,7 +2,7 @@
 % Please edit documentation in R/test_utils.R
 \name{WdS.test}
 \alias{WdS.test}
-\title{Conducts distance-based multivariate Welch ANOVA}
+\title{Conduct Distance-Based Multivariate Welch ANOVA}
 \usage{
 WdS.test(
   dm,
@@ -34,7 +34,7 @@ Results in
 adjusted WdS statistic, omega-squared (\eqn{\omega^2}{\omega^2}) effect
 size estimate, distance-based pseudo-\eqn{R^2},
 and p-value. Note that you may use any data type including factor,
-character, integer, and numeric. Default is NULL}
+character, integer, and numeric. Default is \code{NULL}.}
 
 \item{formula_data}{(optional) An environment, data frame, list, or object
 coercible to a data frame, such as \code{phyloseq::sample_data()}, to be
@@ -82,8 +82,8 @@ A list containing:
   \item \code{p.value}: The p-value of the test.
   \item \code{parameter}: A list of 2-4 containing:
          \itemize{
-         \item \code{strata}: (optional) strata variable used to perform restricted permutations.
-         \item \code{formula}: (optional) formula for residual projection to perform matrix adjustment.
+         \item \code{strata}: (optional) strata variable used for restricted permutations.
+         \item \code{formula}: (optional) formula for residual projection to perform distance adjustment.
          \item \code{dfb}: between degrees of freedom.
          \item \code{nrep}: number of permutations performed
          }
@@ -103,12 +103,12 @@ Our approach can accommodate multi-level factors, stratification (via
 restricted permutations), multiple post-hoc testing scenarios, and covariate
 adjustment/ elimination (via projection of residuals).
 
-If optional covariate adjustment parameters (\code{formula}, and
-\code{formula_data}) are provided as input, they are passed to the \code{WdStar::a.dist()}
-function to project residual matrices and remove the effect of specified
-covariate(s) from distance matrix \code{dm} before performing the test.
-Users may choose to make adjustments within the function or use \code{WdStar::a.dist()}
-outside the function and then pass on the adjusted distance matrix to \code{WdStar::WdS.test()}.
+If optional covariate adjustment parameters \code{formula} and
+\code{formula_data} are supplied, they are passed to \code{\link{a.dist}} to
+project residual matrices and remove the effect of specified covariates from
+distance matrix \code{dm} before performing the test. Users may also make
+adjustments outside the function with \code{\link{a.dist}} and then pass the
+adjusted distance matrix to \code{WdS.test()}.
 
 Goodness-of-fit is reported as a distance-based pseudo-\eqn{R^2}. With
 \code{goodness = "auto"}, unadjusted tests report \code{factor.only}, the
@@ -170,50 +170,78 @@ same value as \code{factor.only}. Use \code{goodness = "none"} to skip these
 additional goodness-of-fit calculations.
 }
 \examples{
-# The following is a simple example using the mtcars dataset to assess the
-# effect of gears on mpg, cyl, and disp (first three variables of the dataset):
-data(mtcars)
+if (requireNamespace("phyloseq", quietly = TRUE)) {
+  data("enterotype", package = "phyloseq")
 
-# The outcome could be a single variable or multiple variables (such as
-# multidimensional omics data).
+  ## Use the full enterotype data after removing samples without Enterotype.
+  ent <- phyloseq::subset_samples(enterotype, !is.na(Enterotype))
+  dm <- phyloseq::distance(ent, method = "bray")
+  meta <- data.frame(phyloseq::sample_data(ent))
+  f <- factor(meta$Enterotype)
 
-## This is an example of outcome with a single variable:
-dm <- dist(mtcars$mpg, method="euclidean")
+  ## Basic multivariate test.
+  WdS.test(dm = dm, f = f, nrep = 9)
 
-## This is an example of outcome with multiple variables:
-dm <- dist(mtcars[1:3], method="euclidean")
+  ## By default, the unadjusted test's goodness.of.fit reports the
+  ## distance-based pseudo-R-squared for the tested factor.
+  unadjusted_res <- WdS.test(dm = dm, f = f, nrep = 9)
+  unadjusted_res$goodness.of.fit
 
-# Grouping/independent variable. You could use multiple variables here too.
-f <- factor(mtcars$gear)
+  ## Use goodness = "none" to skip goodness-of-fit calculations.
+  WdS.test(dm = dm, f = f, goodness = "none", nrep = 9)
 
-# Basic multivariate test example ###########
-#############################################
-WdS.test(dm=dm, f=f)
+  ## Stratified permutation example. This restricts permutations within
+  ## sequencing technology and is shown separately from adjustment by SeqTech.
+  WdS.test(dm = dm, f = f, strata = factor(meta$SeqTech), nrep = 9)
 
-# Stratified example ########################
-#############################################
-strata <- factor(mtcars$vs)
-WdS.test(dm=dm, f=f, strata=strata)
+  ## Covariate adjustment by sequencing technology, a categorical covariate.
+  res <- WdS.test(
+    dm = dm,
+    f = f,
+    formula = ~ SeqTech,
+    formula_data = phyloseq::sample_data(ent),
+    nrep = 9
+  )
+  res$goodness.components
+  res$distance.diagnostics
 
-# Covariate adjustment/elimination examples #
-#############################################
-## Right-hand side adjustment formula to specify adjustment covariates.
-formula <- ~ wt + as.factor(am)
+  ## Request all available goodness-of-fit components.
+  WdS.test(
+    dm = dm,
+    f = f,
+    formula = ~ SeqTech,
+    formula_data = phyloseq::sample_data(ent),
+    goodness = "all",
+    nrep = 9
+  )
 
-## Adjustment example 1: pass unadjusted `dm` and formula to WdS.test()
-WdS.test(dm=dm, f=f, formula=formula, formula_data=mtcars) ## Perform adjusted test
+  ## Continuous covariates can also be used. Age has many missing values in
+  ## enterotype, so this example builds a matching Age-complete distance
+  ## matrix before using Age in the adjustment formula.
+  ent_age <- phyloseq::subset_samples(
+    enterotype,
+    !is.na(Enterotype) & !is.na(Age)
+  )
+  dm_age <- phyloseq::distance(ent_age, method = "bray")
+  meta_age <- data.frame(phyloseq::sample_data(ent_age))
+  WdS.test(
+    dm = dm_age,
+    f = factor(meta_age$Enterotype),
+    formula = ~ Age,
+    formula_data = phyloseq::sample_data(ent_age),
+    nrep = 9
+  )
 
-## Inspect eigenvalue/tolerance diagnostics for constructed distance matrices
-res <- WdS.test(dm=dm, f=f, formula=formula, formula_data=mtcars)
-res$distance.diagnostics
-
-## Request all available goodness-of-fit components
-WdS.test(dm=dm, f=f, formula=formula, formula_data=mtcars, goodness="all")
-
-## Adjustment example 2: Create the adjusted distance matrix `a.dm` outside
-## the function
-a.dm <- a.dist(dm=dm, formula=formula, formula_data=mtcars)
-WdS.test(dm=a.dm, f=f) ## Perform adjusted test with `a.dm`
+  ## Adjustment example 2: create the adjusted distance matrix outside the
+  ## function, then pass it to WdS.test().
+  a.dm <- a.dist(
+    dm = dm,
+    formula = ~ SeqTech,
+    formula_data = phyloseq::sample_data(ent)
+  )
+  WdS.test(dm = a.dm, f = f, nrep = 9)
+  attr(a.dm, "distance.diagnostics")
+}
 
 }
 \seealso{

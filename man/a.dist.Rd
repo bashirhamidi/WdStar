@@ -2,7 +2,7 @@
 % Please edit documentation in R/dist_utils.R
 \name{a.dist}
 \alias{a.dist}
-\title{Covariate Adjusted Principal Coordinates Analysis}
+\title{Compute a Covariate-Adjusted Distance Matrix}
 \usage{
 a.dist(
   dm,
@@ -16,16 +16,15 @@ a.dist(
 \arguments{
 \item{dm}{A distance matrix (any arbitrary distance or dissimilarity metric).}
 
-\item{formula}{Only the right hand side of a typical formula such as Y~ A is
-necessary. The formula has similar requirements as in
-\code{vegan::adonis()} function.}
+\item{formula}{Only the right-hand side of a typical formula, such as
+\code{~ SeqTech} or \code{~ Age + SeqTech}, is necessary. The formula has
+similar requirements as in \code{vegan::adonis()}.}
 
 \item{formula_data}{A dataset which contains the variables specified in
 formula. It may be an environment, data frame, list, or object coercible to
 a data frame, such as \code{phyloseq::sample_data()}. Row names should match
-the row names in distance matrix dm. This dataset should include both the
-confounding covariate and the primary covariate. If not provided, the
-parent frame will be used.}
+the row names in distance matrix \code{dm}. If not provided, the parent
+frame will be used.}
 
 \item{tol}{Tolerance for eigenvalues. This is the cutoff for the eigenvalues
 to be considered zero. Default is 10^-8.}
@@ -39,14 +38,15 @@ eigenvalues in the diagnostic summary. Default is \code{FALSE} to keep
 repeated simulations and large analyses memory-light.}
 }
 \value{
-Returns a distance matrix of class \code{dist} representing the
-  Euclidean distances. When \code{distance.diagnostics = TRUE}, the returned
-  object has a \code{"distance.diagnostics"} attribute containing one row of
-  eigenvalue diagnostics.
+A covariate-adjusted distance matrix of class \code{dist}. When
+  \code{distance.diagnostics = TRUE}, the returned object has a
+  \code{"distance.diagnostics"} attribute containing one row of eigenvalue
+  diagnostics.
 }
 \description{
-This function takes in a formula and distance matrix, adjusts for covariates,
-performs PCoA, and returns the resulting corrected matrix.
+This function takes a formula and distance matrix, projects out covariate
+effects through principal-coordinate residualization, and returns the
+resulting adjusted distance matrix.
 }
 \details{
 The \code{a.dist()} function only requires a right-hand side of the
@@ -95,25 +95,38 @@ The \code{a.dist()} function only requires a right-hand side of the
   \code{aPCoA::aPCoA()} function in the aPCoA package.
 }
 \examples{
-data(mtcars)
+if (requireNamespace("phyloseq", quietly = TRUE)) {
+  data("enterotype", package = "phyloseq")
 
-# The outcome could be a single variable or multiple variables (such as
-# multidimensional omics data).
+  ## Use the full enterotype data after removing samples without Enterotype.
+  ent <- phyloseq::subset_samples(enterotype, !is.na(Enterotype))
+  dm <- phyloseq::distance(ent, method = "bray")
 
-## This is an example with a single variable:
-dm <- dist(mtcars$mpg, method="euclidean")
+  ## Adjust the distance matrix by sequencing technology, a categorical
+  ## covariate stored in phyloseq::sample_data(ent).
+  a.dm <- a.dist(
+    dm = dm,
+    formula = ~ SeqTech,
+    formula_data = phyloseq::sample_data(ent)
+  )
+  a.dm
+  attr(a.dm, "distance.diagnostics")
 
-## This is an example with multiple variables:
-dm <- dist(mtcars[1:3], method="euclidean")
-
-# Right-hand side adjustment formula. Note that you may use any data type
-# including factor, character, integer, and numeric.
-formula <- ~ as.factor(gear) + as.integer(hp) + wt
-
-# Create the adjusted distance matrix 'a.dm'
-a.dm <- a.dist(dm=dm, formula=formula, formula_data=mtcars)
-a.dm
-attr(a.dm, "distance.diagnostics")
+  ## Continuous covariates can also be used. Age has many missing values in
+  ## enterotype, so this example builds a matching Age-complete distance
+  ## matrix before using Age in the adjustment formula.
+  ent_age <- phyloseq::subset_samples(
+    enterotype,
+    !is.na(Enterotype) & !is.na(Age)
+  )
+  dm_age <- phyloseq::distance(ent_age, method = "bray")
+  a.dm.age <- a.dist(
+    dm = dm_age,
+    formula = ~ Age,
+    formula_data = phyloseq::sample_data(ent_age)
+  )
+  attr(a.dm.age, "distance.diagnostics")
+}
 
 }
 \references{

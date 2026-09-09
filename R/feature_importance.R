@@ -40,16 +40,27 @@
 #' @seealso \code{\link{WdS.test}}, \code{\link{dist.goodness.of.fit}}
 #' @export
 #' @examples
-#' data(mtcars)
-#' dm <- dist(mtcars[1:3], method = "euclidean")
-#' f <- factor(mtcars$gear)
-#' WdS.feature.importance(
-#'   dm = dm,
-#'   f = f,
-#'   formula = ~ wt + as.factor(am),
-#'   formula_data = mtcars,
-#'   nrep = 9
-#' )
+#' if (requireNamespace("phyloseq", quietly = TRUE)) {
+#'   data("enterotype", package = "phyloseq")
+#'
+#'   ## Age is missing for many enterotype samples, so use a matching
+#'   ## complete-case distance matrix when ranking Age and Gender.
+#'   ent <- phyloseq::subset_samples(
+#'     enterotype,
+#'     !is.na(Enterotype) & !is.na(Age) & !is.na(Gender)
+#'   )
+#'   dm <- phyloseq::distance(ent, method = "bray")
+#'   meta <- data.frame(phyloseq::sample_data(ent))
+#'   f <- factor(meta$Enterotype)
+#'
+#'   WdS.feature.importance(
+#'     dm = dm,
+#'     f = f,
+#'     formula = ~ Gender + Age,
+#'     formula_data = phyloseq::sample_data(ent),
+#'     nrep = 9
+#'   )
+#' }
 WdS.feature.importance <- function(dm, f, formula, formula_data = parent.frame(),
                                    nrep = 999, strata = NULL, sort = TRUE,
                                    decreasing = TRUE, ...) {
@@ -253,44 +264,41 @@ WdS.feature.importance <- function(dm, f, formula, formula_data = parent.frame()
 #'   \code{\link{dist.goodness.of.fit}}
 #' @export
 #' @examples
-#' data(mtcars)
-#' dm <- dist(mtcars[1:3], method = "euclidean")
-#' f <- factor(mtcars$gear)
-#' taxa_table <- data.frame(
-#'   ASV1 = mtcars$wt,
-#'   ASV2 = mtcars$hp,
-#'   ASV3 = mtcars$qsec,
-#'   row.names = rownames(mtcars)
-#' )
-#' taxonomy_table <- data.frame(
-#'   Genus = c("TaxonA", "TaxonB", "TaxonC"),
-#'   Species = c("species1", "species2", "species3"),
-#'   row.names = colnames(taxa_table)
-#' )
-#' WdS.taxa.importance(
-#'   dm = dm,
-#'   f = f,
-#'   taxa_table = taxa_table,
-#'   taxa_are_rows = FALSE,
-#'   taxonomy_table = taxonomy_table,
-#'   nrep = 9
-#' )
+#' \dontrun{
+#' if (requireNamespace("phyloseq", quietly = TRUE)) {
+#'   data("enterotype", package = "phyloseq")
 #'
-#' ## Add sample-level terms to every taxon-specific adjustment model.
-#' sample_data <- data.frame(
-#'   subject = factor(rep(seq_len(16), each = 2)),
-#'   row.names = rownames(mtcars)
-#' )
-#' WdS.taxa.importance(
-#'   dm = dm,
-#'   f = f,
-#'   taxa_table = taxa_table,
-#'   taxa_are_rows = FALSE,
-#'   formula = ~ subject,
-#'   formula_data = sample_data,
-#'   rank.by = "adjustment.goodness.of.fit",
-#'   nrep = 9
-#' )
+#'   ## Use the full enterotype data after removing samples without Enterotype.
+#'   ent <- phyloseq::subset_samples(enterotype, !is.na(Enterotype))
+#'   dm <- phyloseq::distance(ent, method = "bray")
+#'   meta <- data.frame(phyloseq::sample_data(ent))
+#'   f <- factor(meta$Enterotype)
+#'
+#'   ## Rank taxa by how much the tested factor's goodness-of-fit changes after
+#'   ## each taxon is adjusted out.
+#'   taxa_rank <- WdS.taxa.importance(
+#'     dm = dm,
+#'     f = f,
+#'     physeq = ent,
+#'     nrep = 9
+#'   )
+#'   taxa_rank[, c("taxon", "Genus", "rank", "importance", "p.value"),
+#'             with = FALSE]
+#'
+#'   ## Add a sample-level covariate to every taxon-specific adjustment model.
+#'   taxa_rank_seqtech <- WdS.taxa.importance(
+#'     dm = dm,
+#'     f = f,
+#'     physeq = ent,
+#'     formula = ~ SeqTech,
+#'     formula_data = phyloseq::sample_data(ent),
+#'     rank.by = "adjustment.goodness.of.fit",
+#'     nrep = 9
+#'   )
+#'   taxa_rank_seqtech[, c("taxon", "Genus", "rank", "importance"),
+#'                     with = FALSE]
+#' }
+#' }
 WdS.taxa.importance <- function(dm, f, physeq = NULL, taxa_table = NULL,
                                 taxonomy_table = NULL, taxa_are_rows = TRUE,
                                 taxonomy.ranks = "auto",

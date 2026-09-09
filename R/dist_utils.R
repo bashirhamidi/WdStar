@@ -43,8 +43,13 @@ is.dist <- function(x) any(class(x) == "dist")
 #' @export
 #' @examples
 #'
-#' dm <- as.dist(matrix(runif(100), nrow = 10))
-#' dist.sigma2(dm)
+#' if (requireNamespace("phyloseq", quietly = TRUE)) {
+#'   data("enterotype", package = "phyloseq")
+#'   ent <- phyloseq::subset_samples(enterotype, !is.na(Enterotype))
+#'   dm <- phyloseq::distance(ent, method = "bray")
+#'
+#'   dist.sigma2(dm)
+#' }
 #'
 dist.sigma2 <- function(dm) {
   dd <- as.matrix(dm)
@@ -77,10 +82,18 @@ dist.sigma2 <- function(dm) {
 #'   has more variation than the original distance matrix.
 #' @export
 #' @examples
-#' data(mtcars)
-#' dm <- dist(mtcars[1:3], method = "euclidean")
-#' dm_residual <- a.dist(dm, formula = ~ wt, formula_data = mtcars)
-#' dist.goodness.of.fit(dm, dm_residual)
+#' if (requireNamespace("phyloseq", quietly = TRUE)) {
+#'   data("enterotype", package = "phyloseq")
+#'   ent <- phyloseq::subset_samples(enterotype, !is.na(Enterotype))
+#'   dm <- phyloseq::distance(ent, method = "bray")
+#'
+#'   dm_residual <- a.dist(
+#'     dm = dm,
+#'     formula = ~ SeqTech,
+#'     formula_data = phyloseq::sample_data(ent)
+#'   )
+#'   dist.goodness.of.fit(dm, dm_residual)
+#' }
 #'
 dist.goodness.of.fit <- function(dm, dm_residual = NULL, adjusted_dm = NULL) {
   # adjusted_dm is retained as a compatibility alias from the first development
@@ -126,9 +139,15 @@ dist.goodness.of.fit <- function(dm, dm_residual = NULL, adjusted_dm = NULL) {
 #' @export
 #' @examples
 #'
-#' dm <- matrix(runif(100), nrow = 10)
-#' f <- factor(c(rep("A", 5), rep("B", 5)))
-#' dist.ss2(dm, f)
+#' if (requireNamespace("phyloseq", quietly = TRUE)) {
+#'   data("enterotype", package = "phyloseq")
+#'   ent <- phyloseq::subset_samples(enterotype, !is.na(Enterotype))
+#'   dm <- phyloseq::distance(ent, method = "bray")
+#'   meta <- data.frame(phyloseq::sample_data(ent))
+#'   f <- factor(meta$Enterotype)
+#'
+#'   dist.ss2(as.matrix(dm)^2, f)
+#' }
 #'
 dist.ss2 <- function(dm2, f) {
   K <- sapply(levels(f), function(lev) f == lev)
@@ -143,13 +162,17 @@ dist.ss2 <- function(dm2, f) {
 #' @param dm Distance matrix.
 #' @param f Factor variable for group definition.
 #'
-#' @return A diagonal matrix of group-wise sigma squared values.
+#' @return A named numeric vector of group-wise sigma squared values.
 #' @export
 #' @examples
-#' \dontrun{
-#' dm <- as.dist(matrix(runif(100), nrow = 10))
-#' f <- factor(c(rep("A", 5), rep("B", 5)))
-#' dist.group.sigma2(dm, f)
+#' if (requireNamespace("phyloseq", quietly = TRUE)) {
+#'   data("enterotype", package = "phyloseq")
+#'   ent <- phyloseq::subset_samples(enterotype, !is.na(Enterotype))
+#'   dm <- phyloseq::distance(ent, method = "bray")
+#'   meta <- data.frame(phyloseq::sample_data(ent))
+#'   f <- factor(meta$Enterotype)
+#'
+#'   dist.group.sigma2(dm, f)
 #' }
 dist.group.sigma2 <- function(dm, f) {
   diag(dist.ss2(as.matrix(dm)^2, f)) / table(f) / (table(f) - 1)
@@ -166,9 +189,19 @@ dist.group.sigma2 <- function(dm, f) {
 #' @return Cohen's d value if factor has exactly two levels; NULL otherwise.
 #' @export
 #' @examples
-#' dm <- as.dist(matrix(runif(100), nrow = 10))
-#' f <- factor(c(rep("A", 5), rep("B", 5)))
-#' dist.cohen.d(dm, f)
+#' if (requireNamespace("phyloseq", quietly = TRUE)) {
+#'   data("enterotype", package = "phyloseq")
+#'   ent <- phyloseq::subset_samples(enterotype, !is.na(Enterotype))
+#'   dm <- phyloseq::distance(ent, method = "bray")
+#'   meta <- data.frame(phyloseq::sample_data(ent))
+#'   f <- factor(meta$Enterotype)
+#'
+#'   keep <- f %in% c("1", "2")
+#'   dm_12 <- as.dist(as.matrix(dm)[keep, keep])
+#'   f_12 <- droplevels(f[keep])
+#'
+#'   dist.cohen.d(dm_12, f_12)
+#' }
 #'
 dist.cohen.d <- function(dm, f) {
   if (nlevels(f) != 2) {
@@ -190,23 +223,23 @@ dist.cohen.d <- function(dm, f) {
   mean.diff / sqrt(((ns[1] - 1) * s1 + (ns[2] - 1) * s2) / (sum(ns) - 2))
 }
 
-#' Covariate Adjusted Principal Coordinates Analysis
+#' Compute a Covariate-Adjusted Distance Matrix
 #'
-#' This function takes in a formula and distance matrix, adjusts for covariates,
-#' performs PCoA, and returns the resulting corrected matrix.
+#' This function takes a formula and distance matrix, projects out covariate
+#' effects through principal-coordinate residualization, and returns the
+#' resulting adjusted distance matrix.
 #'
 #' @param dm A distance matrix (any arbitrary distance or dissimilarity metric).
 #'
-#' @param formula Only the right hand side of a typical formula such as Y~ A is
-#'   necessary. The formula has similar requirements as in
-#'   \code{vegan::adonis()} function.
+#' @param formula Only the right-hand side of a typical formula, such as
+#'   \code{~ SeqTech} or \code{~ Age + SeqTech}, is necessary. The formula has
+#'   similar requirements as in \code{vegan::adonis()}.
 #'
 #' @param formula_data A dataset which contains the variables specified in
 #'   formula. It may be an environment, data frame, list, or object coercible to
 #'   a data frame, such as \code{phyloseq::sample_data()}. Row names should match
-#'   the row names in distance matrix dm. This dataset should include both the
-#'   confounding covariate and the primary covariate. If not provided, the
-#'   parent frame will be used.
+#'   the row names in distance matrix \code{dm}. If not provided, the parent
+#'   frame will be used.
 #' @param tol Tolerance for eigenvalues. This is the cutoff for the eigenvalues
 #'   to be considered zero. Default is 10^-8.
 #' @param distance.diagnostics Logical indicating whether to attach a compact
@@ -216,10 +249,10 @@ dist.cohen.d <- function(dm, f) {
 #'   eigenvalues in the diagnostic summary. Default is \code{FALSE} to keep
 #'   repeated simulations and large analyses memory-light.
 #'
-#' @return Returns a distance matrix of class \code{dist} representing the
-#'   Euclidean distances. When \code{distance.diagnostics = TRUE}, the returned
-#'   object has a \code{"distance.diagnostics"} attribute containing one row of
-#'   eigenvalue diagnostics.
+#' @return A covariate-adjusted distance matrix of class \code{dist}. When
+#'   \code{distance.diagnostics = TRUE}, the returned object has a
+#'   \code{"distance.diagnostics"} attribute containing one row of eigenvalue
+#'   diagnostics.
 #'
 #' @details The \code{a.dist()} function only requires a right-hand side of the
 #'   formula. Instead of the left-hand side, it uses the dissimilarity distance
@@ -276,25 +309,38 @@ dist.cohen.d <- function(dm, f) {
 #'
 #' @export
 #' @examples
-#' data(mtcars)
+#' if (requireNamespace("phyloseq", quietly = TRUE)) {
+#'   data("enterotype", package = "phyloseq")
 #'
-#' # The outcome could be a single variable or multiple variables (such as
-#' # multidimensional omics data).
+#'   ## Use the full enterotype data after removing samples without Enterotype.
+#'   ent <- phyloseq::subset_samples(enterotype, !is.na(Enterotype))
+#'   dm <- phyloseq::distance(ent, method = "bray")
 #'
-#' ## This is an example with a single variable:
-#' dm <- dist(mtcars$mpg, method="euclidean")
+#'   ## Adjust the distance matrix by sequencing technology, a categorical
+#'   ## covariate stored in phyloseq::sample_data(ent).
+#'   a.dm <- a.dist(
+#'     dm = dm,
+#'     formula = ~ SeqTech,
+#'     formula_data = phyloseq::sample_data(ent)
+#'   )
+#'   a.dm
+#'   attr(a.dm, "distance.diagnostics")
 #'
-#' ## This is an example with multiple variables:
-#' dm <- dist(mtcars[1:3], method="euclidean")
-#'
-#' # Right-hand side adjustment formula. Note that you may use any data type
-#' # including factor, character, integer, and numeric.
-#' formula <- ~ as.factor(gear) + as.integer(hp) + wt
-#'
-#' # Create the adjusted distance matrix 'a.dm'
-#' a.dm <- a.dist(dm=dm, formula=formula, formula_data=mtcars)
-#' a.dm
-#' attr(a.dm, "distance.diagnostics")
+#'   ## Continuous covariates can also be used. Age has many missing values in
+#'   ## enterotype, so this example builds a matching Age-complete distance
+#'   ## matrix before using Age in the adjustment formula.
+#'   ent_age <- phyloseq::subset_samples(
+#'     enterotype,
+#'     !is.na(Enterotype) & !is.na(Age)
+#'   )
+#'   dm_age <- phyloseq::distance(ent_age, method = "bray")
+#'   a.dm.age <- a.dist(
+#'     dm = dm_age,
+#'     formula = ~ Age,
+#'     formula_data = phyloseq::sample_data(ent_age)
+#'   )
+#'   attr(a.dm.age, "distance.diagnostics")
+#' }
 #'
 a.dist = function(dm, formula, formula_data=parent.frame(), tol=10^-8,
                   distance.diagnostics = TRUE, keep.eigenvalues = FALSE)
