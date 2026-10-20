@@ -183,30 +183,6 @@ length(attr(a.dm.with.eigenvalues, "distance.diagnostics")$eigenvalues[[1]])
 ## Distance-based pseudo-R-squared can also be computed directly
 dist.goodness.of.fit(dm = dm, dm_residual = a.dm)
 
-## Taxa/ASV importance can be ranked by adjusting for one taxon at a time.
-## The abundance values are used exactly as supplied. This full-dataset scan
-## loops over all taxa in enterotype, so it may take longer than a single test.
-taxa_rank <- WdS.taxa.importance(
-  dm = dm,
-  group = group,
-  physeq = ent,
-  nrep = 9
-)
-head(taxa_rank[, c("taxon", "Genus", "rank", "importance", "p.value"),
-               with = FALSE])
-
-## Add sample-level terms to every taxon-specific adjustment model.
-taxa_rank_seqtech <- WdS.taxa.importance(
-  dm = dm,
-  group = group,
-  physeq = ent,
-  adjustment = ~ SeqTech,
-  data = sample_data(ent),
-  rank.by = "adjustment.goodness.of.fit",
-  nrep = 9
-)
-head(taxa_rank_seqtech[, c("taxon", "Genus", "rank", "importance"),
-                       with = FALSE])
 ```
 
 Further examples are provided in the package documentation and may be accessed by running the following commands:
@@ -214,7 +190,6 @@ Further examples are provided in the package documentation and may be accessed b
 ?WdS.test
 ?a.dist
 ?dist.goodness.of.fit
-?WdS.taxa.importance
 ```
 
 ## Feature Requests and Bugs

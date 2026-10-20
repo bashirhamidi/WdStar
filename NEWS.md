@@ -1,20 +1,17 @@
 # WdStar 2.5.1 2026-09-09
 
+* Moved feature and taxa importance functions to the
+  `feature-ranking-selection` development branch.
+
 * Updated `WdS()` to use `group` for a directly supplied grouping factor.
   Named `f` remains a deprecated alias; positional calls still work. Metadata
   lookup stays in `WdS.test()` to keep repeated statistic calculations light.
   `WdS()` continues to return only the observed statistic.
 
-* Fixed option forwarding for single-feature importance models and reject
-  unexpected `WdS.test()` options even when goodness-of-fit is disabled.
+* Reject unexpected `WdS.test()` options even when goodness-of-fit is disabled.
   Clarified metadata lookup/order.
   Help examples skip optional phyloseq usage when it is unavailable rather
   than installing dependencies, and explicitly print the main test results.
-
-* Unified the importance-function interfaces using `group`, `adjustment`, and
-  `data`. Group and strata accept vectors or metadata column names, with caller
-  lookup when data is omitted. Taxa scans align metadata by sample labels before
-  resolving columns. Ranking calculations and output columns are unchanged.
 
 * Goodness-of-fit labels now refer to the tested group. Use `group.only` for
   the group-only component in `goodness`, returned components, and distance
@@ -94,16 +91,6 @@
 
 * Added `phyloseq` as a suggested package to support tests and examples involving
   `sample_data()` inputs.
-
-* Added `WdS.taxa.importance()` for ASV/OTU/taxon ranking. The function adjusts
-  for one taxon at a time with `WdS.test()`, returns a `data.table`, stores
-  adjustment goodness-of-fit, factor goodness-of-fit after adjustment, WdS
-  statistic, p-value, omega-squared, and optional `WdS.test()` objects, and can
-  include taxonomy ranks beside taxon IDs. Users can also add sample-level
-  adjustment terms to every taxon-specific model with `formula`, for example
-  `formula = ~ Subject_ID` for paired/repeated-measures scans. Taxon abundances
-  are used exactly as supplied; transformations should be done upstream by the
-  user.
 
 * Updated documentation for `a.dist()`, `WdS.test()`, and
   `dist.goodness.of.fit()`, including accepted `formula_data` input types,
