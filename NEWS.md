@@ -1,5 +1,43 @@
 # WdStar 2.5.1 2026-09-09
 
+* Updated `WdS()` to use `group` for a directly supplied grouping factor.
+  Named `f` remains a deprecated alias; positional calls still work. Metadata
+  lookup stays in `WdS.test()` to keep repeated statistic calculations light.
+  `WdS()` continues to return only the observed statistic.
+
+* Fixed option forwarding for single-feature importance models and reject
+  unexpected `WdS.test()` options even when goodness-of-fit is disabled.
+  Clarified metadata lookup/order.
+  Help examples skip optional phyloseq usage when it is unavailable rather
+  than installing dependencies, and explicitly print the main test results.
+
+* Unified the importance-function interfaces using `group`, `adjustment`, and
+  `data`. Group and strata accept vectors or metadata column names, with caller
+  lookup when data is omitted. Taxa scans align metadata by sample labels before
+  resolving columns. Ranking calculations and output columns are unchanged.
+
+* Goodness-of-fit labels now refer to the tested group. Use `group.only` for
+  the group-only component in `goodness`, returned components, and distance
+  diagnostic roles.
+
+* Modernized the preferred `WdS.test()` interface. New code should use
+  `group`, `adjustment`, and `data`, for example
+  `WdS.test(dm, group = Enterotype, adjustment = ~ SeqTech, data = meta)`.
+  Named legacy arguments `f`, `formula`, and `formula_data` still work through
+  `...`, but now warn users to use the new names.
+
+* Added tidy-friendly column lookup to `WdS.test()`. When `data` is supplied,
+  `group` and `strata` can be vectors, unquoted column names, or length-one
+  character column names.
+
+* Unified `a.dist()` with `WdS.test()` using `adjustment` and `data`.
+  Deprecated named aliases `formula` and `formula_data` are accepted through
+  `...` with warnings; conflicting, duplicated, or unexpected arguments error.
+  Omitted or `NULL` data uses the calling environment, and adjustment requires
+  a one-sided formula. The first six positional arguments keep their meaning;
+  legacy `formula_data` must now be named. Intercept handling, rank handling,
+  eigenvalue rules, and the adjustment calculations are unchanged.
+
 * Replaced remaining `mtcars`, random-matrix, and placeholder examples in the
   package documentation with `phyloseq::enterotype` microbiome examples.
   Examples now use Bray-Curtis distances, `Enterotype` as the tested factor,
@@ -21,9 +59,8 @@
   of determination, \(R^2_{pseudo} = 1 - \sigma^2_{residual} /
   \sigma^2_{total}\), for users who compute original and residual distance
   matrices outside of `WdS.test()`. The helper now uses the more general
-  `dm_residual` argument, while keeping `adjusted_dm` as a compatibility alias,
-  and validates that both inputs are `dist` objects with the same number of
-  observations.
+  `dm_residual` argument and validates that both inputs are `dist` objects with
+  the same number of observations.
 
 * `WdS.test()` now reports a separate `goodness.of.fit` component. This keeps
   `estimate` reserved for omega-squared (\(\omega^2\)) while reporting

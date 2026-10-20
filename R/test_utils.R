@@ -112,23 +112,31 @@ Tw2.test <- function(dm, f, nrep = 999) {
 #' restricted permutations), multiple post-hoc testing scenarios, and covariate
 #' adjustment/ elimination (via projection of residuals).
 #'
-#' If optional covariate adjustment parameters \code{formula} and
-#' \code{formula_data} are supplied, they are passed to \code{\link{a.dist}} to
-#' project residual matrices and remove the effect of specified covariates from
-#' distance matrix \code{dm} before performing the test. Users may also make
-#' adjustments outside the function with \code{\link{a.dist}} and then pass the
-#' adjusted distance matrix to \code{WdS.test()}.
+#' The preferred interface is \code{group} for the tested grouping variable,
+#' \code{adjustment} for optional covariates to remove, and \code{data} for
+#' sample metadata. For example, \code{group = Enterotype} and
+#' \code{adjustment = ~ Age + SeqTech} test Enterotype after removing variation
+#' associated with Age and sequencing technology. The \code{adjustment} formula
+#' is passed to \code{\link{a.dist}} to project residual matrices before the
+#' test is performed. Users may also make adjustments outside the function with
+#' \code{\link{a.dist}} and then pass the adjusted distance matrix to
+#' \code{WdS.test()}.
+#'
+#' For compatibility with earlier versions, \code{f}, \code{formula}, and
+#' \code{formula_data} may still be supplied as named arguments through
+#' \code{...}. These names are deprecated in \code{WdS.test()}; use
+#' \code{group}, \code{adjustment}, and \code{data} instead.
 #'
 #' Goodness-of-fit is reported as a distance-based pseudo-\eqn{R^2}. With
-#' \code{goodness = "auto"}, unadjusted tests report \code{factor.only}, the
-#' variation explained by the tested factor. Adjusted tests report
+#' \code{goodness = "auto"}, unadjusted tests report \code{group.only}, the
+#' variation explained by the tested group. Adjusted tests report
 #' \code{semi.partial}, the additional fraction of total distance variation
-#' explained by the tested factor after the adjustment variables. The
+#' explained by the tested group after the adjustment variables. The
 #' \code{goodness.components} table stores components computed directly or
 #' derived from the residual distance matrices used for the requested
 #' calculation. For adjusted \code{"auto"} tests, this includes
 #' \code{adjustment}, \code{full}, \code{semi.partial}, and \code{partial}, but
-#' not \code{factor.only}, which requires an additional residual distance matrix.
+#' not \code{group.only}, which requires an additional residual distance matrix.
 #' Values near zero indicate little distance-variation reduction, larger
 #' positive values indicate greater reduction, and negative values may occur
 #' when the residual distance matrix has more variation than the original
@@ -138,7 +146,7 @@ Tw2.test <- function(dm, f, nrep = 999) {
 #' \code{distance.diagnostics = TRUE}, \code{WdS.test()} collects the diagnostic
 #' summaries attached by \code{\link{a.dist}()} for each residual distance
 #' matrix it constructs, using roles such as \code{"adjustment"},
-#' \code{"factor.only"}, and \code{"full"}. These diagnostics record the
+#' \code{"group.only"}, and \code{"full"}. These diagnostics record the
 #' tolerance used, how many eigenvalues were treated as zero by \code{tol}, and
 #' how many negative eigenvalues were removed during reconstruction. Use
 #' \code{keep.eigenvalues = TRUE} to store the raw eigenvalue vectors for deeper
@@ -147,59 +155,63 @@ Tw2.test <- function(dm, f, nrep = 999) {
 #' The diagnostic rows correspond to residual distance matrices actually
 #' constructed by the call. For example, an adjusted test with
 #' \code{goodness = "auto"} stores rows for \code{"adjustment"} and
-#' \code{"full"}; \code{"factor.only"} is added only when requested, such as
+#' \code{"full"}; \code{"group.only"} is added only when requested, such as
 #' with \code{goodness = "all"}. An unadjusted test with the default
-#' \code{goodness = "auto"} stores a \code{"factor.only"} row. If
+#' \code{goodness = "auto"} stores a \code{"group.only"} row. If
 #' \code{goodness = "none"} and no adjustment formula is supplied, no residual
 #' distance matrix is constructed and \code{distance.diagnostics} is
 #' \code{NULL}, unless the input \code{dm} already carries diagnostics from a
 #' previous \code{a.dist()} call. In that case, the input diagnostics are
 #' preserved with role \code{"input"}.
 #'
-#' For adjustment variables \eqn{Z} and tested factor \eqn{F}, the components
+#' For adjustment variables \eqn{Z} and tested group \eqn{G}, the components
 #' are interpreted as follows:
 #' \itemize{
-#'   \item \code{factor.only}: \eqn{R^2_F}, variation explained by \eqn{F}
+#'   \item \code{group.only}: \eqn{R^2_G}, variation explained by \eqn{G}
 #'   alone, ignoring adjustment variables.
 #'   \item \code{adjustment}: \eqn{R^2_Z}, variation explained by \eqn{Z}
-#'   alone, ignoring \eqn{F}.
-#'   \item \code{full}: \eqn{R^2_{Z+F}}, variation explained by \eqn{Z} and
-#'   \eqn{F} together from one model formula.
-#'   \item \code{semi.partial}: \eqn{R^2_{Z+F} - R^2_Z}, the additional
-#'   fraction of total distance variation explained by \eqn{F} after \eqn{Z}.
-#'   \item \code{partial}: \eqn{(R^2_{Z+F} - R^2_Z)/(1 - R^2_Z)}, the fraction
-#'   of adjustment-residual variation explained by \eqn{F}.
+#'   alone, ignoring \eqn{G}.
+#'   \item \code{full}: \eqn{R^2_{Z+G}}, variation explained by \eqn{Z} and
+#'   \eqn{G} together from one model formula.
+#'   \item \code{semi.partial}: \eqn{R^2_{Z+G} - R^2_Z}, the additional
+#'   fraction of total distance variation explained by \eqn{G} after \eqn{Z}.
+#'   \item \code{partial}: \eqn{(R^2_{Z+G} - R^2_Z)/(1 - R^2_Z)}, the fraction
+#'   of adjustment-residual variation explained by \eqn{G}.
 #' }
 #' The full-model residual matrix is computed from the original \code{dm} with
 #' a combined formula. It is not computed by applying \code{a.dist()} a second
 #' time to an already residualized distance matrix.
 #' When no adjustment formula is supplied, \code{adjustment} is unavailable; if
 #' requested, \code{full}, \code{semi.partial}, and \code{partial} reduce to the
-#' same value as \code{factor.only}. Use \code{goodness = "none"} to skip these
+#' same value as \code{group.only}. Use \code{goodness = "none"} to skip these
 #' additional goodness-of-fit calculations.
 #'
 #' @param dm A distance matrix (any arbitrary distance or dissimilarity metric).
-#' @param f A factor variable representing the groups.
+#' @param group The tested grouping variable. This may be a vector/factor, an
+#'   unquoted column name in \code{data}, or a length-one character column name
+#'   in \code{data}.
 #' @param nrep (optional) The number of permutations to conduct. Default is 999.
 #' @param strata (optional) A factor variable representing strata. If specified,
 #'   the test will perform p-value computations using stratified permutation.
-#'   Default is NULL.
-#' @param formula (optional) A right-hand side ONLY formula to be used with
-#'   \code{formula_data} for confounder adjustment/elimination from \code{dm}.
-#'   Results in
-#'   adjusted WdS statistic, omega-squared (\eqn{\omega^2}{\omega^2}) effect
-#'   size estimate, distance-based pseudo-\eqn{R^2},
-#'   and p-value. Note that you may use any data type including factor,
-#'   character, integer, and numeric. Default is \code{NULL}.
-#' @param formula_data (optional) An environment, data frame, list, or object
-#'   coercible to a data frame, such as \code{phyloseq::sample_data()}, to be
-#'   used in conjunction with \code{formula} for confounder adjustment. Default is
-#'   parent.frame()
+#'   This may be a vector/factor, an unquoted column name in \code{data}, or a
+#'   length-one character column name in \code{data}. Default is \code{NULL}.
+#' @param adjustment (optional) A right-hand-side formula specifying covariates
+#'   to remove from \code{dm} before testing \code{group}. For example,
+#'   \code{~ SeqTech}, \code{~ Age + SeqTech}, or \code{~ Age * SeqTech}. Note
+#'   that you may use any data type supported by \code{model.matrix()}, including
+#'   factor, character, integer, and numeric variables. Default is \code{NULL}.
+#' @param data (optional) An environment, data frame, list, or object coercible
+#'   to a data frame, such as \code{phyloseq::sample_data()}. Variables in
+#'   \code{group}, \code{strata}, and \code{adjustment} are first looked up here.
+#'   If omitted or \code{NULL}, the calling environment is used. Metadata rows
+#'   and external vectors must follow the sample order in \code{dm}; this
+#'   function does not reorder metadata by row names. Adjustment variables
+#'   absent from \code{data} are looked up in the formula environment.
 #' @param goodness Which distance-based pseudo-\eqn{R^2} goodness-of-fit
-#'   component to report. Options are \code{"auto"}, \code{"factor.only"},
+#'   component to report. Options are \code{"auto"}, \code{"group.only"},
 #'   \code{"adjustment"}, \code{"full"}, \code{"semi.partial"},
 #'   \code{"partial"}, \code{"all"}, and \code{"none"}. The default
-#'   \code{"auto"} reports \code{"factor.only"} for unadjusted tests and
+#'   \code{"auto"} reports \code{"group.only"} for unadjusted tests and
 #'   \code{"semi.partial"} for adjusted tests. Multiple explicit components may
 #'   be requested with a character vector, except for \code{"auto"},
 #'   \code{"all"}, and \code{"none"}. Use \code{"none"} to skip
@@ -213,7 +225,11 @@ Tw2.test <- function(dm, f, nrep = 999) {
 #' @param ... Additional arguments passed to \code{\link{a.dist}()}, such as
 #'   \code{tol} (tolerance for eigenvalues; default \code{1e-8}). These
 #'   arguments are used when residual distance matrices are computed for
-#'   adjustment or goodness-of-fit components.
+#'   adjustment or goodness-of-fit components. Deprecated named arguments
+#'   \code{f}, \code{formula}, and \code{formula_data} are also accepted here for
+#'   backward compatibility. Unexpected arguments are rejected even when
+#'   \code{goodness = "none"}; a single unnamed extra argument is treated
+#'   as \code{tol} for positional compatibility.
 #' @return A list containing:
 #' \itemize{
 #'   \item \code{method}: name of the method used.
@@ -232,7 +248,7 @@ Tw2.test <- function(dm, f, nrep = 999) {
 #'   \item \code{parameter}: A list of 2-4 containing:
 #'          \itemize{
 #'          \item \code{strata}: (optional) strata variable used for restricted permutations.
-#'          \item \code{formula}: (optional) formula for residual projection to perform distance adjustment.
+#'          \item \code{adjustment}: (optional) formula for residual projection to perform distance adjustment.
 #'          \item \code{dfb}: between degrees of freedom.
 #'          \item \code{nrep}: number of permutations performed
 #'          }
@@ -243,114 +259,162 @@ Tw2.test <- function(dm, f, nrep = 999) {
 #' @importFrom stats terms
 #' @export
 #' @examples
+#' # phyloseq is optional; examples run when it is already installed.
 #' if (requireNamespace("phyloseq", quietly = TRUE)) {
-#'   data("enterotype", package = "phyloseq")
+#'   data("enterotype", package = "phyloseq") # load enterotype data
 #'
 #'   ## Use the full enterotype data after removing samples without Enterotype.
 #'   ent <- phyloseq::subset_samples(enterotype, !is.na(Enterotype))
 #'   dm <- phyloseq::distance(ent, method = "bray")
-#'   meta <- data.frame(phyloseq::sample_data(ent))
-#'   f <- factor(meta$Enterotype)
 #'
-#'   ## Basic multivariate test.
-#'   WdS.test(dm = dm, f = f, nrep = 9)
+#'   ## Basic multivariate test:
+#'   print(WdS.test(
+#'     dm = dm,
+#'     group = Enterotype,
+#'     data = phyloseq::sample_data(ent),
+#'     nrep = 9  # change nrep to 999 or more for a real analysis
+#'   ))
 #'
 #'   ## By default, the unadjusted test's goodness.of.fit reports the
-#'   ## distance-based pseudo-R-squared for the tested factor.
-#'   unadjusted_res <- WdS.test(dm = dm, f = f, nrep = 9)
-#'   unadjusted_res$goodness.of.fit
+#'   ## distance-based pseudo-R-squared for the tested group.
+#'   print(unadjusted_res <- WdS.test(
+#'     dm = dm,
+#'     group = "Enterotype",
+#'     data = phyloseq::sample_data(ent),
+#'     nrep = 9
+#'   ))
+#'   ## goodness.of.fit contains the selected values; goodness.components
+#'   ## contains all components calculated for this test.
+#'   # print(unadjusted_res$goodness.components)
 #'
 #'   ## Use goodness = "none" to skip goodness-of-fit calculations.
-#'   WdS.test(dm = dm, f = f, goodness = "none", nrep = 9)
+#'   # WdS.test(
+#'   #  dm = dm,
+#'   #  group = Enterotype,
+#'   #  data = phyloseq::sample_data(ent),
+#'   #  goodness = "none",
+#'   #  nrep = 9
+#'   #)
 #'
 #'   ## Stratified permutation example. This restricts permutations within
-#'   ## sequencing technology and is shown separately from adjustment by SeqTech.
-#'   WdS.test(dm = dm, f = f, strata = factor(meta$SeqTech), nrep = 9)
+#'   ## sequencing technology. Stratification does not change statistics,
+#'   ## estimate, or goodness-of-fit.
+#'   print(WdS.test(
+#'     dm = dm,
+#'     group = Enterotype,
+#'     strata = SeqTech,
+#'     data = phyloseq::sample_data(ent),
+#'     nrep = 9
+#'   ))
 #'
 #'   ## Covariate adjustment by sequencing technology, a categorical covariate.
-#'   res <- WdS.test(
+#'   print(res <- WdS.test(
 #'     dm = dm,
-#'     f = f,
-#'     formula = ~ SeqTech,
-#'     formula_data = phyloseq::sample_data(ent),
+#'     group = Enterotype,
+#'     adjustment = ~ SeqTech,
+#'     data = phyloseq::sample_data(ent),
 #'     nrep = 9
-#'   )
-#'   res$goodness.components
-#'   res$distance.diagnostics
+#'   ))
+#'   # res$goodness.components
+#'   # res$distance.diagnostics
 #'
 #'   ## Request all available goodness-of-fit components.
-#'   WdS.test(
-#'     dm = dm,
-#'     f = f,
-#'     formula = ~ SeqTech,
-#'     formula_data = phyloseq::sample_data(ent),
-#'     goodness = "all",
-#'     nrep = 9
-#'   )
+#'   # WdS.test(
+#'   #  dm = dm,
+#'   #  group = Enterotype,
+#'   #  adjustment = ~ SeqTech,
+#'   #  data = phyloseq::sample_data(ent),
+#'   #  goodness = "all",
+#'   #  nrep = 9
+#'   # )
 #'
 #'   ## Continuous covariates can also be used. Age has many missing values in
 #'   ## enterotype, so this example builds a matching Age-complete distance
 #'   ## matrix before using Age in the adjustment formula.
-#'   ent_age <- phyloseq::subset_samples(
-#'     enterotype,
-#'     !is.na(Enterotype) & !is.na(Age)
-#'   )
-#'   dm_age <- phyloseq::distance(ent_age, method = "bray")
-#'   meta_age <- data.frame(phyloseq::sample_data(ent_age))
-#'   WdS.test(
-#'     dm = dm_age,
-#'     f = factor(meta_age$Enterotype),
-#'     formula = ~ Age,
-#'     formula_data = phyloseq::sample_data(ent_age),
-#'     nrep = 9
-#'   )
+#'   # ent_age <- phyloseq::subset_samples(enterotype,
+#'   #  !is.na(Enterotype) & !is.na(Age)
+#'   #)
+#'   # dm_age <- phyloseq::distance(ent_age, method = "bray")
+#'   # WdS.test(
+#'   #  dm = dm_age,
+#'   #  group = Enterotype,
+#'   #  adjustment = ~ Age,
+#'   #  data = phyloseq::sample_data(ent_age),
+#'   #  nrep = 9
+#'   #)
 #'
 #'   ## Adjustment example 2: create the adjusted distance matrix outside the
 #'   ## function, then pass it to WdS.test().
-#'   a.dm <- a.dist(
-#'     dm = dm,
-#'     formula = ~ SeqTech,
-#'     formula_data = phyloseq::sample_data(ent)
-#'   )
-#'   WdS.test(dm = a.dm, f = f, nrep = 9)
-#'   attr(a.dm, "distance.diagnostics")
+#'   # a.dm <- a.dist(
+#'   #  dm = dm,
+#'   #  adjustment = ~ SeqTech,
+#'   #  data = phyloseq::sample_data(ent)
+#'   #)
+#'   # WdS.test(
+#'   #  dm = a.dm,
+#'   #  group = Enterotype,
+#'   #  data = phyloseq::sample_data(ent),
+#'   #  nrep = 9
+#'   #)
+#'   #attr(a.dm, "distance.diagnostics")
 #' }
 #'
 # goodness and diagnostic controls are placed after ... so older calls that pass
 # a.dist() arguments through ... keep their positional behavior; users should
 # pass these newer controls by name.
-WdS.test <- function(dm, f, nrep=999, strata=NULL, formula=NULL, formula_data=parent.frame(), ...,
+WdS.test <- function(dm, group, nrep=999, strata=NULL, adjustment=NULL, data=NULL, ...,
                      goodness="auto", distance.diagnostics = TRUE,
                      keep.eigenvalues = FALSE){
+  # Capture the call before evaluating group/strata. This is what lets users
+  # write group = Enterotype when Enterotype lives inside data.
+  call <- match.call(expand.dots = FALSE)
+  parent <- parent.frame()
+  dot_exprs <- as.list(call$...)
+
+  # Helper function to validate inputs: normalize the new names and the old
+  # aliases once at the top. The below code should only have to think about
+  # resolved vectors, one adjustment formula, one metadata source, and a clean
+  # list for a.dist().
+  args <- .resolve_wdstest_arguments(
+    group = if (!missing(group)) substitute(group),
+    strata = if (!missing(strata)) substitute(strata),
+    adjustment = if (!missing(adjustment)) substitute(adjustment),
+    data = if (!missing(data)) substitute(data),
+    dots = dot_exprs,
+    envir = parent,
+    dm_size = attr(dm, "Size")
+  )
+  group <- args$group
+  strata <- args$strata
+  adjustment <- args$adjustment
+  data <- args$data
+  a.dist.args <- args$a.dist.args
+  strata_label <- args$strata_label
+
   .validate_distance_diagnostic_options(distance.diagnostics, keep.eigenvalues)
-  has_formula <- !is.null(formula)
-  has_formula_data <- !missing(formula_data) && !is.null(formula_data)
+  has_adjustment <- !is.null(adjustment)
 
   # Goodness-of-fit always compares a residual distance matrix back to the
   # original dm, even when the test statistic itself uses an adjusted dm.
   original_dm <- dm
-  data <- NULL
 
-  if (!has_formula && has_formula_data) {
-      stop("Both 'formula' and 'formula_data' must be provided together for a.dist() adjustment processing.")
-   }
-  if (has_formula) {
-    data <- .as_formula_data(formula_data)
-    dm <- a.dist(
-      dm,
-      formula,
-      data,
-      ...,
+  if (has_adjustment) {
+    dm <- .call_a_dist(
+      dm = dm,
+      formula = adjustment,
+      data = data,
+      a.dist.args = a.dist.args,
       distance.diagnostics = distance.diagnostics,
-      keep.eigenvalues = keep.eigenvalues
+      keep.eigenvalues = keep.eigenvalues,
+      quiet = FALSE
     )
   }
-  test.results <- generic.distance.permutation.test(WdS, dm=dm, f=f, nrep=nrep, strata=strata)
+  test.results <- generic.distance.permutation.test(WdS, dm=dm, f=group, nrep=nrep, strata=strata)
 
     # Name of the hypothesis test
-  if(!is.null(formula)) {
+  if(!is.null(adjustment)) {
     method <- "Adjusted Distance-based Multivariate Welch ANOVA"
-    adjustment_formula <- deparse(substitute(formula))
+    adjustment_formula <- paste(deparse(adjustment), collapse = "")
     } else {
     method <- "Distance-based Multivariate Welch ANOVA"
     adjustment_formula <- NULL
@@ -362,7 +426,7 @@ WdS.test <- function(dm, f, nrep=999, strata=NULL, formula=NULL, formula_data=pa
     else {strata_selected <- NULL}
 
   # Description of the data
-  data.name <- paste0(attr(dm, "method"), " distance matrix with ", attr(dm, "Size"), " observations and grouping factor with ", nlevels(f), " levels", strata_selected)
+  data.name <- paste0(attr(dm, "method"), " distance matrix with ", attr(dm, "Size"), " observations and grouping factor with ", nlevels(group), " levels", strata_selected)
 
   # Value of the parameter under the null hypothesis
   # null.value <- 0
@@ -376,21 +440,21 @@ WdS.test <- function(dm, f, nrep=999, strata=NULL, formula=NULL, formula_data=pa
   attr(statistic, "names") <- "WdS"
 
   # Effect size estimator of variance, omega-squared
-  estimate <- (((length(levels(f))-1)*(unname(statistic)-1))/((length(levels(f))-1)*(unname(statistic) - 1) + attr(dm, "Size")))
+  estimate <- (((length(levels(group))-1)*(unname(statistic)-1))/((length(levels(group))-1)*(unname(statistic) - 1) + attr(dm, "Size")))
   attr(estimate, "names") <- "effect size estimator of variance, omega-squared (\u03C9\u00B2)"
 
   # Build the requested pseudo-R2 output after the WdS statistic is computed.
   # For adjusted tests, dm is now the adjustment-residual distance matrix.
   goodness <- .compute_wdstest_goodness(
     dm = original_dm,
-    f = f,
-    formula = formula,
+    f = group,
+    formula = adjustment,
     formula_data = data,
-    dm_adjustment_residual = if (has_formula) dm else NULL,
+    dm_adjustment_residual = if (has_adjustment) dm else NULL,
     goodness = goodness,
     distance.diagnostics = distance.diagnostics,
     keep.eigenvalues = keep.eigenvalues,
-    ...
+    a.dist.args = a.dist.args
   )
 
   # P-value
@@ -403,12 +467,12 @@ WdS.test <- function(dm, f, nrep=999, strata=NULL, formula=NULL, formula_data=pa
                goodness.of.fit = goodness$goodness.of.fit,
                goodness.components = goodness$goodness.components,
                distance.diagnostics = goodness$distance.diagnostics,
-               parameter = c(if(!is.null(strata)){c("strata"= deparse(substitute(strata)))},
-                             if(!is.null(formula)){c("formula"= paste0(deparse(substitute(formula)),
-                                                                       " with ",
-                                                                       length(attr(terms(formula), "term.labels")),
-                                                                       " terms"))},
-                             c("dfb" = (length(levels(f))-1)),
+               parameter = c(if(!is.null(strata)){c("strata"= strata_label)},
+                             if(!is.null(adjustment)){c("adjustment"= paste0(adjustment_formula,
+                                                                             " with ",
+                                                                             length(attr(terms(adjustment), "term.labels")),
+                                                                             " terms"))},
+                             c("dfb" = (length(levels(group))-1)),
                              c("number of permutations" = nrep)
                              )
                )
@@ -441,11 +505,303 @@ print.wdstest <- function(x, ...) {
   invisible(x)
 }
 
+.resolve_wdstest_arguments <- function(group, strata, adjustment, data, dots,
+                                       envir, dm_size) {
+  if (is.null(dots)) {
+    dots <- list()
+  }
+
+  # Old named arguments arrive through ... because the public signature now uses
+  # group/adjustment/data. We keep them working, but we do not let users supply
+  # both old and new names for the same job.
+  has_legacy_group <- .has_named_dot_arg(dots, "f")
+  has_legacy_adjustment <- .has_named_dot_arg(dots, "formula")
+  has_legacy_data <- .has_named_dot_arg(dots, "formula_data")
+
+  if (!is.null(group) && has_legacy_group) {
+    stop("Use only one of 'group' or deprecated 'f'.", call. = FALSE)
+  }
+  if (!is.null(adjustment) && has_legacy_adjustment) {
+    stop("Use only one of 'adjustment' or deprecated 'formula'.", call. = FALSE)
+  }
+  if (!is.null(data) && has_legacy_data) {
+    stop("Use only one of 'data' or deprecated 'formula_data'.", call. = FALSE)
+  }
+
+  if (is.null(group)) {
+    if (!has_legacy_group) {
+      stop("'group' must be provided.", call. = FALSE)
+    }
+    # Named f = ... is the old WdS.test() API. Positional second arguments still
+    # work naturally because they now match group.
+    .warn_deprecated_argument("f", "group", "WdS.test")
+    group <- .get_named_dot_expr(dots, "f")
+  }
+
+  if (is.null(adjustment) && has_legacy_adjustment) {
+    legacy_adjustment <- eval(.get_named_dot_expr(dots, "formula"), envir = envir)
+    if (!is.null(legacy_adjustment)) {
+      .warn_deprecated_argument("formula", "adjustment", "WdS.test")
+      adjustment <- legacy_adjustment
+    }
+  } else if (!is.null(adjustment)) {
+    adjustment <- eval(adjustment, envir = envir)
+  }
+  adjustment <- .as_wdstest_adjustment(adjustment)
+
+  metadata <- .resolve_wdstest_data(
+    data = data,
+    formula_data = if (has_legacy_data) .get_named_dot_expr(dots, "formula_data"),
+    envir = envir
+  )
+
+  # Resolve group and strata after metadata is known. That gives data columns
+  # first chance, then falls back to ordinary objects in the caller's frame.
+  group_resolved <- .resolve_wdstest_variable(
+    expr = group,
+    data = metadata$data,
+    envir = envir,
+    arg = "group",
+    allow_string_column = metadata$explicit
+  )
+  group_value <- .as_wdstest_group(group_resolved$value, arg = "group")
+
+  if (is.null(strata)) {
+    strata_value <- NULL
+    strata_label <- NULL
+  } else {
+    strata_resolved <- .resolve_wdstest_variable(
+      expr = strata,
+      data = metadata$data,
+      envir = envir,
+      arg = "strata",
+      allow_string_column = metadata$explicit
+    )
+    if (is.null(strata_resolved$value)) {
+      # Internal callers often forward strata = strata where the local strata
+      # object is NULL. Treat that the same as not supplying strata at all.
+      strata_value <- NULL
+      strata_label <- NULL
+    } else {
+      strata_value <- .as_wdstest_vector(strata_resolved$value, arg = "strata")
+      .validate_wdstest_vector_length(strata_value, dm_size = dm_size, arg = "strata")
+      strata_label <- strata_resolved$label
+    }
+  }
+
+  .validate_wdstest_vector_length(group_value, dm_size = dm_size, arg = "group")
+
+  list(
+    group = group_value,
+    strata = strata_value,
+    strata_label = strata_label,
+    adjustment = adjustment,
+    data = metadata$data,
+    # These are true a.dist() options such as tol. Legacy aliases have already
+    # been consumed above, so they cannot leak into a.dist() by mistake.
+    a.dist.args = .validate_wdstest_distance_args(.eval_dot_exprs(
+      .drop_named_dot_args(dots, c("f", "formula", "formula_data")),
+      envir = envir
+    ))
+  )
+}
+
+.resolve_wdstest_data <- function(data, formula_data, envir) {
+  has_data <- !is.null(data)
+  has_formula_data <- !is.null(formula_data)
+
+  # data/formula_data can themselves be expressions, for example
+  # data = phyloseq::sample_data(ent), so evaluate only after conflicts are
+  # checked at the expression level in .resolve_wdstest_arguments().
+  data_value <- if (has_data) eval(data, envir = envir) else NULL
+  formula_data_value <- if (has_formula_data) eval(formula_data, envir = envir) else NULL
+  has_data <- !is.null(data_value)
+  has_formula_data <- !is.null(formula_data_value)
+
+  if (has_data && has_formula_data) {
+    stop("Use only one of 'data' or deprecated 'formula_data'.", call. = FALSE)
+  }
+  if (has_formula_data) {
+    .warn_deprecated_argument("formula_data", "data", "WdS.test")
+    data_value <- formula_data_value
+  }
+
+  # Without a user-supplied data object, formulas and unquoted group/strata
+  # expressions retain the existing parent.frame() lookup behavior.
+  if (!has_data && !has_formula_data) {
+    return(list(data = envir, explicit = FALSE))
+  }
+
+  list(data = .as_formula_data(data_value, arg = "data"), explicit = TRUE)
+}
+
+.resolve_wdstest_variable <- function(expr, data, envir, arg,
+                                      allow_string_column = FALSE) {
+  expr_label <- paste(deparse(expr), collapse = "")
+
+  # Data columns intentionally take precedence, matching formula/data APIs such
+  # as lm() and adonis2() while still allowing external vectors as a fallback.
+  if (allow_string_column && is.symbol(expr)) {
+    column <- as.character(expr)
+    if (.data_has_name(data, column)) {
+      return(list(value = .data_get_name(data, column), label = column))
+    }
+  }
+
+  value <- tryCatch(
+    eval(expr, envir = envir),
+    error = function(e) e
+  )
+  if (inherits(value, "error")) {
+    stop(
+      "Could not find '", expr_label, "' for '", arg,
+      "'. Supply a vector directly, or supply a column name with 'data'.",
+      call. = FALSE
+    )
+  }
+  # This makes programmatic use convenient:
+  #   group_var <- "Enterotype"
+  #   WdS.test(dm, group = group_var, data = meta)
+  if (allow_string_column && is.character(value) && length(value) == 1 &&
+      .data_has_name(data, value)) {
+    return(list(value = .data_get_name(data, value), label = value))
+  }
+
+  list(value = value, label = expr_label)
+}
+
+.as_wdstest_group <- function(x, arg) {
+  x <- .as_wdstest_vector(x, arg = arg)
+  group <- factor(x)
+  if (nlevels(group) < 2) {
+    stop("'group' must contain at least two levels.", call. = FALSE)
+  }
+  group
+}
+
+.as_wdstest_vector <- function(x, arg) {
+  if (is.data.frame(x) || is.matrix(x) || (is.list(x) && !is.factor(x))) {
+    stop("'", arg, "' must resolve to a vector or factor, not a data frame, matrix, or list.",
+         call. = FALSE)
+  }
+  if (length(x) < 1) {
+    stop("'", arg, "' must not be empty.", call. = FALSE)
+  }
+  x
+}
+
+.validate_wdstest_vector_length <- function(x, dm_size, arg) {
+  if (!is.null(dm_size) && length(x) != dm_size) {
+    stop(
+      "'", arg, "' must have length ", dm_size,
+      " to match the distance matrix, but has length ", length(x), ".",
+      call. = FALSE
+    )
+  }
+  invisible(x)
+}
+
+.as_wdstest_adjustment <- function(adjustment) {
+  if (is.null(adjustment)) {
+    return(NULL)
+  }
+  if (!inherits(adjustment, "formula") || length(adjustment) != 2L) {
+    stop("'adjustment' must be a right-hand-side formula, such as ~ Age + SeqTech.",
+         call. = FALSE)
+  }
+  adjustment
+}
+
+.has_named_dot_arg <- function(dots, arg) {
+  dot_names <- names(dots)
+  if (is.null(dot_names)) {
+    return(FALSE)
+  }
+  any(dot_names == arg)
+}
+
+.get_named_dot_expr <- function(dots, arg) {
+  index <- which(names(dots) == arg)
+  if (length(index) > 1) {
+    stop("Argument '", arg, "' was supplied more than once.", call. = FALSE)
+  }
+  dots[[index]]
+}
+
+.drop_named_dot_args <- function(dots, args) {
+  dot_names <- names(dots)
+  if (is.null(dot_names)) {
+    return(dots)
+  }
+  dots[!(dot_names %in% args)]
+}
+
+.eval_dot_exprs <- function(dots, envir) {
+  values <- lapply(dots, eval, envir = envir)
+  names(values) <- names(dots)
+  values
+}
+
+.validate_wdstest_distance_args <- function(args) {
+  # Validate routing even if no residual matrix will be computed. Otherwise a
+  # misspelled option can appear to work only when goodness is disabled.
+  arg_names <- names(args)
+  unknown <- setdiff(arg_names, c("", "tol"))
+  if (length(unknown)) {
+    stop("Unused argument(s): ", paste(unknown, collapse = ", "), call. = FALSE)
+  }
+  if (length(args) > 1L) {
+    stop("Supply 'tol' only once; no other extra distance options are supported.",
+         call. = FALSE)
+  }
+  # The historical seventh positional WdS.test() argument is tol.
+  if (length(args)) names(args) <- "tol"
+  args
+}
+
+.data_has_name <- function(data, name) {
+  if (is.environment(data)) {
+    exists(name, envir = data, inherits = FALSE)
+  } else {
+    name %in% names(data)
+  }
+}
+
+.data_get_name <- function(data, name) {
+  if (is.environment(data)) {
+    get(name, envir = data, inherits = FALSE)
+  } else {
+    data[[name]]
+  }
+}
+
+.call_a_dist <- function(dm, formula, data, a.dist.args,
+                         distance.diagnostics = TRUE,
+                         keep.eigenvalues = FALSE,
+                         quiet = FALSE) {
+  # Use the public adjustment/data names so internal calls do not trigger
+  # deprecation warnings. Keep extra options such as tol in the same order.
+  args <- c(
+    list(dm = dm, adjustment = formula, data = data),
+    a.dist.args,
+    list(
+      distance.diagnostics = distance.diagnostics,
+      keep.eigenvalues = keep.eigenvalues
+    )
+  )
+
+  if (isTRUE(quiet)) {
+    return(suppressMessages(do.call(a.dist, args)))
+  }
+  do.call(a.dist, args)
+}
+
 .compute_wdstest_goodness <- function(dm, f, formula = NULL, formula_data = NULL,
                                       dm_adjustment_residual = NULL,
                                       goodness = "auto",
                                       distance.diagnostics = TRUE,
-                                      keep.eigenvalues = FALSE, ...) {
+                                      keep.eigenvalues = FALSE,
+                                      a.dist.args = list()) {
   has_formula <- !is.null(formula)
   goodness <- .resolve_goodness(goodness, has_formula = has_formula)
   diagnostics <- list()
@@ -473,8 +829,8 @@ print.wdstest <- function(x, ...) {
     ))
   }
 
-  # Treat f as an internal formula variable so users do not need to add the
-  # tested factor to formula_data themselves. Name generation avoids collisions
+  # Add the tested group as an internal formula variable so users do not need to
+  # add it to data themselves. Name generation avoids collisions
   # with existing columns or environment bindings.
   factor_name <- .make_internal_factor_name(formula_data)
   factor_data <- .add_internal_factor(formula_data, f, factor_name)
@@ -488,32 +844,32 @@ print.wdstest <- function(x, ...) {
       component = "adjustment",
       pseudo.R2 = r2_adjustment,
       formula = paste(deparse(formula), collapse = ""),
-      interpretation = "Distance variation explained by the adjustment formula alone, ignoring the tested factor."
+      interpretation = "Distance variation explained by the adjustment formula alone, ignoring the tested group."
     )
 
-    # factor.only requires its own F-only residual distance matrix. It is
+    # group.only requires its own F-only residual distance matrix. It is
     # skipped for adjusted goodness="auto" to avoid unnecessary computation.
-    needs_factor_only <- any(goodness$computed %in% "factor.only")
+    needs_factor_only <- any(goodness$computed %in% "group.only")
     if (needs_factor_only) {
       dm_factor_residual <- .a_dist_for_goodness(
         dm,
         factor_formula,
         factor_data,
-        ...,
+        a.dist.args = a.dist.args,
         distance.diagnostics = distance.diagnostics,
         keep.eigenvalues = keep.eigenvalues
       )
-      diagnostics[["factor.only"]] <- .collect_distance_diagnostics(
+      diagnostics[["group.only"]] <- .collect_distance_diagnostics(
         dm_factor_residual,
-        role = "factor.only",
-        formula = "~ f"
+        role = "group.only",
+        formula = "~ group"
       )
       r2_factor <- unname(dist.goodness.of.fit(dm, dm_factor_residual))
-      components[["factor.only"]] <- .goodness_component(
-        component = "factor.only",
+      components[["group.only"]] <- .goodness_component(
+        component = "group.only",
         pseudo.R2 = r2_factor,
-        formula = "~ f",
-        interpretation = "Distance variation explained by the tested factor alone, ignoring adjustment variables."
+        formula = "~ group",
+        interpretation = "Distance variation explained by the tested group alone, ignoring adjustment variables."
       )
     }
 
@@ -525,7 +881,7 @@ print.wdstest <- function(x, ...) {
         dm,
         full_formula,
         factor_data,
-        ...,
+        a.dist.args = a.dist.args,
         distance.diagnostics = distance.diagnostics,
         keep.eigenvalues = keep.eigenvalues
       )
@@ -539,7 +895,7 @@ print.wdstest <- function(x, ...) {
       adjustment_residual_fraction <- 1 - r2_adjustment
 
       # partial R2 is undefined if the adjustment model leaves no residual
-      # variation to be explained by the tested factor.
+      # variation to be explained by the tested group.
       r2_partial <- if (is.na(r2_adjustment) ||
                         abs(adjustment_residual_fraction) < .Machine$double.eps) {
         NA_real_
@@ -551,48 +907,48 @@ print.wdstest <- function(x, ...) {
         component = "full",
         pseudo.R2 = r2_full,
         formula = .display_formula_with_factor(formula, formula_data),
-        interpretation = "Distance variation explained jointly by the adjustment formula and the tested factor."
+        interpretation = "Distance variation explained jointly by the adjustment formula and the tested group."
       )
       components[["semi.partial"]] <- .goodness_component(
         component = "semi.partial",
         pseudo.R2 = r2_semi_partial,
-        formula = "f | adjustment",
-        interpretation = "Additional fraction of total distance variation explained by the tested factor after adjustment."
+        formula = "group | adjustment",
+        interpretation = "Additional fraction of total distance variation explained by the tested group after adjustment."
       )
       components[["partial"]] <- .goodness_component(
         component = "partial",
         pseudo.R2 = r2_partial,
-        formula = "f | adjustment",
-        interpretation = "Fraction of adjustment-residual distance variation explained by the tested factor."
+        formula = "group | adjustment",
+        interpretation = "Fraction of adjustment-residual distance variation explained by the tested group."
       )
     }
   } else {
     if (any(goodness$computed %in% "adjustment")) {
-      stop("'adjustment' goodness-of-fit requires an adjustment 'formula'.")
+      stop("'adjustment' goodness-of-fit requires an 'adjustment' formula.")
     }
 
     dm_factor_residual <- .a_dist_for_goodness(
       dm,
       factor_formula,
       factor_data,
-      ...,
+      a.dist.args = a.dist.args,
       distance.diagnostics = distance.diagnostics,
       keep.eigenvalues = keep.eigenvalues
     )
-    diagnostics[["factor.only"]] <- .collect_distance_diagnostics(
+    diagnostics[["group.only"]] <- .collect_distance_diagnostics(
       dm_factor_residual,
-      role = "factor.only",
-      formula = "~ f"
+      role = "group.only",
+      formula = "~ group"
     )
     r2_factor <- unname(dist.goodness.of.fit(dm, dm_factor_residual))
 
     # With no adjustment set, full, semi-partial, and partial reduce to the
-    # tested factor's model pseudo-R-squared.
+    # tested group's model pseudo-R-squared.
     for (component in goodness$computed) {
       components[[component]] <- .goodness_component(
         component = component,
         pseudo.R2 = r2_factor,
-        formula = "~ f",
+        formula = "~ group",
         interpretation = .unadjusted_goodness_interpretation(component)
       )
     }
@@ -614,7 +970,7 @@ print.wdstest <- function(x, ...) {
 }
 
 .resolve_goodness <- function(goodness, has_formula) {
-  allowed <- c("auto", "factor.only", "adjustment", "full",
+  allowed <- c("auto", "group.only", "adjustment", "full",
                "semi.partial", "partial", "all", "none")
   goodness <- unname(as.character(goodness))
   if (length(goodness) < 1) {
@@ -636,7 +992,7 @@ print.wdstest <- function(x, ...) {
   }
   if (identical(goodness, "auto")) {
     if (has_formula) {
-      # Adjusted auto shows the factor's semi-partial pseudo-R2. The stored
+      # Adjusted auto shows the group's semi-partial pseudo-R2. The stored
       # components include partial because it is derived from the same scalars.
       return(list(
         requested = "auto",
@@ -644,19 +1000,19 @@ print.wdstest <- function(x, ...) {
         computed = c("adjustment", "full", "semi.partial", "partial")
       ))
     }
-    # With no adjustment variables, the natural default is the factor-only
+    # With no adjustment variables, the natural default is the group-only
     # pseudo-R2 rather than a semi-partial label.
     return(list(
       requested = "auto",
-      displayed = "factor.only",
-      computed = "factor.only"
+      displayed = "group.only",
+      computed = "group.only"
     ))
   }
   if (identical(goodness, "all")) {
     if (has_formula) {
-      all_components <- c("adjustment", "factor.only", "full", "semi.partial", "partial")
+      all_components <- c("adjustment", "group.only", "full", "semi.partial", "partial")
     } else {
-      all_components <- c("factor.only", "full", "semi.partial", "partial")
+      all_components <- c("group.only", "full", "semi.partial", "partial")
     }
     return(list(requested = "all", displayed = all_components, computed = all_components))
   }
@@ -671,7 +1027,7 @@ print.wdstest <- function(x, ...) {
     if (any(computed %in% "full")) {
       computed <- unique(c("adjustment", computed))
     }
-    if (any(computed %in% "factor.only")) {
+    if (any(computed %in% "group.only")) {
       computed <- unique(c("adjustment", computed))
     }
   }
@@ -679,19 +1035,20 @@ print.wdstest <- function(x, ...) {
   list(requested = goodness, displayed = goodness, computed = computed)
 }
 
-.a_dist_for_goodness <- function(dm, formula, formula_data, ...,
+.a_dist_for_goodness <- function(dm, formula, formula_data, a.dist.args = list(),
                                  distance.diagnostics = TRUE,
                                  keep.eigenvalues = FALSE) {
   # Keep WdS.test output focused; direct a.dist() calls still report eigenvalue
   # handling messages to users.
-  suppressMessages(a.dist(
-    dm,
-    formula,
-    formula_data,
-    ...,
+  .call_a_dist(
+    dm = dm,
+    formula = formula,
+    data = formula_data,
+    a.dist.args = a.dist.args,
     distance.diagnostics = distance.diagnostics,
-    keep.eigenvalues = keep.eigenvalues
-  ))
+    keep.eigenvalues = keep.eigenvalues,
+    quiet = TRUE
+  )
 }
 
 .collect_distance_diagnostics <- function(dm, role, formula = NULL) {
@@ -701,7 +1058,7 @@ print.wdstest <- function(x, ...) {
   }
 
   # Roles are assigned by WdS.test because a.dist() does not know whether its
-  # residual matrix is being used for adjustment, factor-only, or full-model work.
+  # residual matrix is being used for adjustment, group-only, or full-model work.
   diagnostics$role <- role
   if (!is.null(formula)) {
     diagnostics$formula <- formula
@@ -764,7 +1121,7 @@ print.wdstest <- function(x, ...) {
   rhs <- paste(c(term_labels, factor_name), collapse = " + ")
 
   # Preserve explicit no-intercept formulas. Without this, ~ x - 1 would become
-  # ~ x + f when building the full model, silently reintroducing an intercept
+  # ~ x + group when building the full model, silently reintroducing an intercept
   # and changing full, semi.partial, and partial pseudo-R2 values.
   if (identical(attr(formula_terms, "intercept"), 0L)) {
     rhs <- paste(rhs, "- 1")
@@ -772,7 +1129,7 @@ print.wdstest <- function(x, ...) {
   stats::as.formula(paste("~", rhs), env = environment(formula))
 }
 
-.display_formula_with_factor <- function(formula, data, factor_label = "f") {
+.display_formula_with_factor <- function(formula, data, factor_label = "group") {
   formula_terms <- stats::terms(formula, data = data)
   term_labels <- attr(formula_terms, "term.labels")
   rhs <- paste(c(term_labels, factor_label), collapse = " + ")
@@ -799,18 +1156,18 @@ print.wdstest <- function(x, ...) {
   vapply(component, function(x) {
     switch(
       x,
-      "adjustment" = "distance-based pseudo-R\u00B2 for adjustment variables",
-      "factor.only" = "distance-based pseudo-R\u00B2 for factor only",
-      "full" = "distance-based pseudo-R\u00B2 for full model",
+      "adjustment" = "pseudo-R\u00B2 for adjustment variables",
+      "group.only" = "pseudo-R\u00B2 for group only",
+      "full" = "pseudo-R\u00B2 for full model",
       "semi.partial" = if (has_formula) {
-        "semi-partial distance-based pseudo-R\u00B2 for factor given adjustment"
+        "semi-partial pseudo-R\u00B2 for group given adjustment"
       } else {
-        "semi-partial distance-based pseudo-R\u00B2 for factor"
+        "semi-partial pseudo-R\u00B2 for group"
       },
       "partial" = if (has_formula) {
-        "partial distance-based pseudo-R\u00B2 for factor given adjustment"
+        "partial pseudo-R\u00B2 for group given adjustment"
       } else {
-        "partial distance-based pseudo-R\u00B2 for factor"
+        "partial pseudo-R\u00B2 for group"
       },
       x
     )
@@ -820,10 +1177,10 @@ print.wdstest <- function(x, ...) {
 .unadjusted_goodness_interpretation <- function(component) {
   switch(
     component,
-    "factor.only" = "Distance variation explained by the tested factor.",
-    "full" = "Distance variation explained by the full model; this equals factor.only because no adjustment formula was supplied.",
-    "semi.partial" = "Additional fraction of total distance variation explained by the tested factor; this equals factor.only because no adjustment formula was supplied.",
-    "partial" = "Fraction of residual distance variation explained by the tested factor; this equals factor.only because no adjustment formula was supplied.",
+    "group.only" = "Distance variation explained by the tested group.",
+    "full" = "Distance variation explained by the full model; this equals group.only because no adjustment formula was supplied.",
+    "semi.partial" = "Additional fraction of total distance variation explained by the tested group; this equals group.only because no adjustment formula was supplied.",
+    "partial" = "Fraction of residual distance variation explained by the tested group; this equals group.only because no adjustment formula was supplied.",
     "Distance variation explained by the requested component."
   )
 }

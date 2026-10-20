@@ -6,11 +6,11 @@
 \usage{
 WdS.test(
   dm,
-  f,
+  group,
   nrep = 999,
   strata = NULL,
-  formula = NULL,
-  formula_data = parent.frame(),
+  adjustment = NULL,
+  data = NULL,
   ...,
   goodness = "auto",
   distance.diagnostics = TRUE,
@@ -20,37 +20,45 @@ WdS.test(
 \arguments{
 \item{dm}{A distance matrix (any arbitrary distance or dissimilarity metric).}
 
-\item{f}{A factor variable representing the groups.}
+\item{group}{The tested grouping variable. This may be a vector/factor, an
+unquoted column name in \code{data}, or a length-one character column name
+in \code{data}.}
 
 \item{nrep}{(optional) The number of permutations to conduct. Default is 999.}
 
 \item{strata}{(optional) A factor variable representing strata. If specified,
 the test will perform p-value computations using stratified permutation.
-Default is NULL.}
+This may be a vector/factor, an unquoted column name in \code{data}, or a
+length-one character column name in \code{data}. Default is \code{NULL}.}
 
-\item{formula}{(optional) A right-hand side ONLY formula to be used with
-\code{formula_data} for confounder adjustment/elimination from \code{dm}.
-Results in
-adjusted WdS statistic, omega-squared (\eqn{\omega^2}{\omega^2}) effect
-size estimate, distance-based pseudo-\eqn{R^2},
-and p-value. Note that you may use any data type including factor,
-character, integer, and numeric. Default is \code{NULL}.}
+\item{adjustment}{(optional) A right-hand-side formula specifying covariates
+to remove from \code{dm} before testing \code{group}. For example,
+\code{~ SeqTech}, \code{~ Age + SeqTech}, or \code{~ Age * SeqTech}. Note
+that you may use any data type supported by \code{model.matrix()}, including
+factor, character, integer, and numeric variables. Default is \code{NULL}.}
 
-\item{formula_data}{(optional) An environment, data frame, list, or object
-coercible to a data frame, such as \code{phyloseq::sample_data()}, to be
-used in conjunction with \code{formula} for confounder adjustment. Default is
-parent.frame()}
+\item{data}{(optional) An environment, data frame, list, or object coercible
+to a data frame, such as \code{phyloseq::sample_data()}. Variables in
+\code{group}, \code{strata}, and \code{adjustment} are first looked up here.
+If omitted or \code{NULL}, the calling environment is used. Metadata rows
+and external vectors must follow the sample order in \code{dm}; this
+function does not reorder metadata by row names. Adjustment variables
+absent from \code{data} are looked up in the formula environment.}
 
 \item{...}{Additional arguments passed to \code{\link{a.dist}()}, such as
 \code{tol} (tolerance for eigenvalues; default \code{1e-8}). These
 arguments are used when residual distance matrices are computed for
-adjustment or goodness-of-fit components.}
+adjustment or goodness-of-fit components. Deprecated named arguments
+\code{f}, \code{formula}, and \code{formula_data} are also accepted here for
+backward compatibility. Unexpected arguments are rejected even when
+\code{goodness = "none"}; a single unnamed extra argument is treated
+as \code{tol} for positional compatibility.}
 
 \item{goodness}{Which distance-based pseudo-\eqn{R^2} goodness-of-fit
-component to report. Options are \code{"auto"}, \code{"factor.only"},
+component to report. Options are \code{"auto"}, \code{"group.only"},
 \code{"adjustment"}, \code{"full"}, \code{"semi.partial"},
 \code{"partial"}, \code{"all"}, and \code{"none"}. The default
-\code{"auto"} reports \code{"factor.only"} for unadjusted tests and
+\code{"auto"} reports \code{"group.only"} for unadjusted tests and
 \code{"semi.partial"} for adjusted tests. Multiple explicit components may
 be requested with a character vector, except for \code{"auto"},
 \code{"all"}, and \code{"none"}. Use \code{"none"} to skip
@@ -83,7 +91,7 @@ A list containing:
   \item \code{parameter}: A list of 2-4 containing:
          \itemize{
          \item \code{strata}: (optional) strata variable used for restricted permutations.
-         \item \code{formula}: (optional) formula for residual projection to perform distance adjustment.
+         \item \code{adjustment}: (optional) formula for residual projection to perform distance adjustment.
          \item \code{dfb}: between degrees of freedom.
          \item \code{nrep}: number of permutations performed
          }
@@ -103,23 +111,31 @@ Our approach can accommodate multi-level factors, stratification (via
 restricted permutations), multiple post-hoc testing scenarios, and covariate
 adjustment/ elimination (via projection of residuals).
 
-If optional covariate adjustment parameters \code{formula} and
-\code{formula_data} are supplied, they are passed to \code{\link{a.dist}} to
-project residual matrices and remove the effect of specified covariates from
-distance matrix \code{dm} before performing the test. Users may also make
-adjustments outside the function with \code{\link{a.dist}} and then pass the
-adjusted distance matrix to \code{WdS.test()}.
+The preferred interface is \code{group} for the tested grouping variable,
+\code{adjustment} for optional covariates to remove, and \code{data} for
+sample metadata. For example, \code{group = Enterotype} and
+\code{adjustment = ~ Age + SeqTech} test Enterotype after removing variation
+associated with Age and sequencing technology. The \code{adjustment} formula
+is passed to \code{\link{a.dist}} to project residual matrices before the
+test is performed. Users may also make adjustments outside the function with
+\code{\link{a.dist}} and then pass the adjusted distance matrix to
+\code{WdS.test()}.
+
+For compatibility with earlier versions, \code{f}, \code{formula}, and
+\code{formula_data} may still be supplied as named arguments through
+\code{...}. These names are deprecated in \code{WdS.test()}; use
+\code{group}, \code{adjustment}, and \code{data} instead.
 
 Goodness-of-fit is reported as a distance-based pseudo-\eqn{R^2}. With
-\code{goodness = "auto"}, unadjusted tests report \code{factor.only}, the
-variation explained by the tested factor. Adjusted tests report
+\code{goodness = "auto"}, unadjusted tests report \code{group.only}, the
+variation explained by the tested group. Adjusted tests report
 \code{semi.partial}, the additional fraction of total distance variation
-explained by the tested factor after the adjustment variables. The
+explained by the tested group after the adjustment variables. The
 \code{goodness.components} table stores components computed directly or
 derived from the residual distance matrices used for the requested
 calculation. For adjusted \code{"auto"} tests, this includes
 \code{adjustment}, \code{full}, \code{semi.partial}, and \code{partial}, but
-not \code{factor.only}, which requires an additional residual distance matrix.
+not \code{group.only}, which requires an additional residual distance matrix.
 Values near zero indicate little distance-variation reduction, larger
 positive values indicate greater reduction, and negative values may occur
 when the residual distance matrix has more variation than the original
@@ -129,7 +145,7 @@ Distance diagnostics are stored separately from goodness-of-fit. When
 \code{distance.diagnostics = TRUE}, \code{WdS.test()} collects the diagnostic
 summaries attached by \code{\link{a.dist}()} for each residual distance
 matrix it constructs, using roles such as \code{"adjustment"},
-\code{"factor.only"}, and \code{"full"}. These diagnostics record the
+\code{"group.only"}, and \code{"full"}. These diagnostics record the
 tolerance used, how many eigenvalues were treated as zero by \code{tol}, and
 how many negative eigenvalues were removed during reconstruction. Use
 \code{keep.eigenvalues = TRUE} to store the raw eigenvalue vectors for deeper
@@ -138,109 +154,136 @@ diagnosis; the default keeps only the compact summary.
 The diagnostic rows correspond to residual distance matrices actually
 constructed by the call. For example, an adjusted test with
 \code{goodness = "auto"} stores rows for \code{"adjustment"} and
-\code{"full"}; \code{"factor.only"} is added only when requested, such as
+\code{"full"}; \code{"group.only"} is added only when requested, such as
 with \code{goodness = "all"}. An unadjusted test with the default
-\code{goodness = "auto"} stores a \code{"factor.only"} row. If
+\code{goodness = "auto"} stores a \code{"group.only"} row. If
 \code{goodness = "none"} and no adjustment formula is supplied, no residual
 distance matrix is constructed and \code{distance.diagnostics} is
 \code{NULL}, unless the input \code{dm} already carries diagnostics from a
 previous \code{a.dist()} call. In that case, the input diagnostics are
 preserved with role \code{"input"}.
 
-For adjustment variables \eqn{Z} and tested factor \eqn{F}, the components
+For adjustment variables \eqn{Z} and tested group \eqn{G}, the components
 are interpreted as follows:
 \itemize{
-  \item \code{factor.only}: \eqn{R^2_F}, variation explained by \eqn{F}
+  \item \code{group.only}: \eqn{R^2_G}, variation explained by \eqn{G}
   alone, ignoring adjustment variables.
   \item \code{adjustment}: \eqn{R^2_Z}, variation explained by \eqn{Z}
-  alone, ignoring \eqn{F}.
-  \item \code{full}: \eqn{R^2_{Z+F}}, variation explained by \eqn{Z} and
-  \eqn{F} together from one model formula.
-  \item \code{semi.partial}: \eqn{R^2_{Z+F} - R^2_Z}, the additional
-  fraction of total distance variation explained by \eqn{F} after \eqn{Z}.
-  \item \code{partial}: \eqn{(R^2_{Z+F} - R^2_Z)/(1 - R^2_Z)}, the fraction
-  of adjustment-residual variation explained by \eqn{F}.
+  alone, ignoring \eqn{G}.
+  \item \code{full}: \eqn{R^2_{Z+G}}, variation explained by \eqn{Z} and
+  \eqn{G} together from one model formula.
+  \item \code{semi.partial}: \eqn{R^2_{Z+G} - R^2_Z}, the additional
+  fraction of total distance variation explained by \eqn{G} after \eqn{Z}.
+  \item \code{partial}: \eqn{(R^2_{Z+G} - R^2_Z)/(1 - R^2_Z)}, the fraction
+  of adjustment-residual variation explained by \eqn{G}.
 }
 The full-model residual matrix is computed from the original \code{dm} with
 a combined formula. It is not computed by applying \code{a.dist()} a second
 time to an already residualized distance matrix.
 When no adjustment formula is supplied, \code{adjustment} is unavailable; if
 requested, \code{full}, \code{semi.partial}, and \code{partial} reduce to the
-same value as \code{factor.only}. Use \code{goodness = "none"} to skip these
+same value as \code{group.only}. Use \code{goodness = "none"} to skip these
 additional goodness-of-fit calculations.
 }
 \examples{
+# phyloseq is optional; examples run when it is already installed.
 if (requireNamespace("phyloseq", quietly = TRUE)) {
-  data("enterotype", package = "phyloseq")
+  data("enterotype", package = "phyloseq") # load enterotype data
 
   ## Use the full enterotype data after removing samples without Enterotype.
   ent <- phyloseq::subset_samples(enterotype, !is.na(Enterotype))
   dm <- phyloseq::distance(ent, method = "bray")
-  meta <- data.frame(phyloseq::sample_data(ent))
-  f <- factor(meta$Enterotype)
 
-  ## Basic multivariate test.
-  WdS.test(dm = dm, f = f, nrep = 9)
+  ## Basic multivariate test:
+  print(WdS.test(
+    dm = dm,
+    group = Enterotype,
+    data = phyloseq::sample_data(ent),
+    nrep = 9  # change nrep to 999 or more for a real analysis
+  ))
 
   ## By default, the unadjusted test's goodness.of.fit reports the
-  ## distance-based pseudo-R-squared for the tested factor.
-  unadjusted_res <- WdS.test(dm = dm, f = f, nrep = 9)
-  unadjusted_res$goodness.of.fit
+  ## distance-based pseudo-R-squared for the tested group.
+  print(unadjusted_res <- WdS.test(
+    dm = dm,
+    group = "Enterotype",
+    data = phyloseq::sample_data(ent),
+    nrep = 9
+  ))
+  ## goodness.of.fit contains the selected values; goodness.components
+  ## contains all components calculated for this test.
+  # print(unadjusted_res$goodness.components)
 
   ## Use goodness = "none" to skip goodness-of-fit calculations.
-  WdS.test(dm = dm, f = f, goodness = "none", nrep = 9)
+  # WdS.test(
+  #  dm = dm,
+  #  group = Enterotype,
+  #  data = phyloseq::sample_data(ent),
+  #  goodness = "none",
+  #  nrep = 9
+  #)
 
   ## Stratified permutation example. This restricts permutations within
-  ## sequencing technology and is shown separately from adjustment by SeqTech.
-  WdS.test(dm = dm, f = f, strata = factor(meta$SeqTech), nrep = 9)
+  ## sequencing technology. Stratification does not change statistics,
+  ## estimate, or goodness-of-fit.
+  print(WdS.test(
+    dm = dm,
+    group = Enterotype,
+    strata = SeqTech,
+    data = phyloseq::sample_data(ent),
+    nrep = 9
+  ))
 
   ## Covariate adjustment by sequencing technology, a categorical covariate.
-  res <- WdS.test(
+  print(res <- WdS.test(
     dm = dm,
-    f = f,
-    formula = ~ SeqTech,
-    formula_data = phyloseq::sample_data(ent),
+    group = Enterotype,
+    adjustment = ~ SeqTech,
+    data = phyloseq::sample_data(ent),
     nrep = 9
-  )
-  res$goodness.components
-  res$distance.diagnostics
+  ))
+  # res$goodness.components
+  # res$distance.diagnostics
 
   ## Request all available goodness-of-fit components.
-  WdS.test(
-    dm = dm,
-    f = f,
-    formula = ~ SeqTech,
-    formula_data = phyloseq::sample_data(ent),
-    goodness = "all",
-    nrep = 9
-  )
+  # WdS.test(
+  #  dm = dm,
+  #  group = Enterotype,
+  #  adjustment = ~ SeqTech,
+  #  data = phyloseq::sample_data(ent),
+  #  goodness = "all",
+  #  nrep = 9
+  # )
 
   ## Continuous covariates can also be used. Age has many missing values in
   ## enterotype, so this example builds a matching Age-complete distance
   ## matrix before using Age in the adjustment formula.
-  ent_age <- phyloseq::subset_samples(
-    enterotype,
-    !is.na(Enterotype) & !is.na(Age)
-  )
-  dm_age <- phyloseq::distance(ent_age, method = "bray")
-  meta_age <- data.frame(phyloseq::sample_data(ent_age))
-  WdS.test(
-    dm = dm_age,
-    f = factor(meta_age$Enterotype),
-    formula = ~ Age,
-    formula_data = phyloseq::sample_data(ent_age),
-    nrep = 9
-  )
+  # ent_age <- phyloseq::subset_samples(enterotype,
+  #  !is.na(Enterotype) & !is.na(Age)
+  #)
+  # dm_age <- phyloseq::distance(ent_age, method = "bray")
+  # WdS.test(
+  #  dm = dm_age,
+  #  group = Enterotype,
+  #  adjustment = ~ Age,
+  #  data = phyloseq::sample_data(ent_age),
+  #  nrep = 9
+  #)
 
   ## Adjustment example 2: create the adjusted distance matrix outside the
   ## function, then pass it to WdS.test().
-  a.dm <- a.dist(
-    dm = dm,
-    formula = ~ SeqTech,
-    formula_data = phyloseq::sample_data(ent)
-  )
-  WdS.test(dm = a.dm, f = f, nrep = 9)
-  attr(a.dm, "distance.diagnostics")
+  # a.dm <- a.dist(
+  #  dm = dm,
+  #  adjustment = ~ SeqTech,
+  #  data = phyloseq::sample_data(ent)
+  #)
+  # WdS.test(
+  #  dm = a.dm,
+  #  group = Enterotype,
+  #  data = phyloseq::sample_data(ent),
+  #  nrep = 9
+  #)
+  #attr(a.dm, "distance.diagnostics")
 }
 
 }

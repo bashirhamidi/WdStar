@@ -4,7 +4,7 @@
 \alias{dist.goodness.of.fit}
 \title{Calculate Distance-Based Pseudo-R-Squared for Residual Distances}
 \usage{
-dist.goodness.of.fit(dm, dm_residual = NULL, adjusted_dm = NULL)
+dist.goodness.of.fit(dm, dm_residual = NULL)
 }
 \arguments{
 \item{dm}{The original/raw distance matrix.}
@@ -12,8 +12,6 @@ dist.goodness.of.fit(dm, dm_residual = NULL, adjusted_dm = NULL)
 \item{dm_residual}{A residual distance matrix after removing a model
 component, such as a grouping factor, adjustment variables, or their full
 model.}
-
-\item{adjusted_dm}{Optional compatibility alias for \code{dm_residual}.}
 }
 \value{
 Distance-based pseudo-\eqn{R^2}. Returns \code{NA_real_} when the
@@ -43,8 +41,8 @@ if (requireNamespace("phyloseq", quietly = TRUE)) {
 
   dm_residual <- a.dist(
     dm = dm,
-    formula = ~ SeqTech,
-    formula_data = phyloseq::sample_data(ent)
+    adjustment = ~ SeqTech,
+    data = phyloseq::sample_data(ent)
   )
   dist.goodness.of.fit(dm, dm_residual)
 }

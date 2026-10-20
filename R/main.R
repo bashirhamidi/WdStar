@@ -65,7 +65,12 @@ Tw2 <- function(dm, f) {
 #' It is suitable for microbiome and other multivariate distance data.
 #'
 #' @param dm A distance matrix, representing dissimilarity between observations.
-#' @param f A factor variable indicating the group for each observation.
+#' @param group A grouping factor with at least two levels, in the same
+#'   observation order as \code{dm}. Supply the factor directly; metadata-column
+#'   lookup is available in \code{\link{WdS.test}}, not this function.
+#' @param ... Deprecated named argument \code{f}, an alias for \code{group}.
+#'   It warns when used and cannot be combined with \code{group}. No other
+#'   extra arguments are accepted.
 #'
 #' @return The calculated Wd* statistic.
 #'
@@ -82,10 +87,8 @@ Tw2 <- function(dm, f) {
 #'   data("enterotype", package = "phyloseq")
 #'   ent <- phyloseq::subset_samples(enterotype, !is.na(Enterotype))
 #'   dm <- phyloseq::distance(ent, method = "bray")
-#'   meta <- data.frame(phyloseq::sample_data(ent))
-#'   f <- factor(meta$Enterotype)
-#'
-#'   WdS(dm, f)
+#'   group <- factor(phyloseq::sample_data(ent)$Enterotype)
+#'   print(WdS(dm, group = group))
 #' }
 #'
 #' @references
@@ -96,13 +99,38 @@ Tw2 <- function(dm, f) {
 #'   \url{https://github.com/alekseyenko/WdStar}
 #'
 #' @export
-WdS <- function(dm, f) {
-  ns <- table(f)
-  SS2 <- dist.ss2(as.matrix(dm)^2, f)
+WdS <- function(dm, group, ...) {
+  dots <- list(...)
+  # Only the old grouping name is supported here. Adjustment and permutation
+  # options belong to WdS.test(), not this statistic-only function.
+  dot_names <- names(dots)
+  if (length(dots) && (is.null(dot_names) || any(!nzchar(dot_names)) ||
+                       any(dot_names != "f"))) {
+    stop("Only the deprecated named 'f' argument is accepted in '...'.", call. = FALSE)
+  }
+  if (length(dots)) {
+    if (length(dots) > 1L) {
+      stop("Argument 'f' was supplied more than once.", call. = FALSE)
+    }
+    if (!missing(group)) {
+      stop("Use only one of 'group' or deprecated 'f'.", call. = FALSE)
+    }
+    .warn_deprecated_argument("f", "group", "WdS")
+    group <- dots$f
+  }
+  if (missing(group)) stop("'group' must be provided.", call. = FALSE)
+  # WdS.test() prepares the factor once before permutations. Keep only cheap
+  # checks here rather than repeating metadata lookup or factor conversion.
+  if (!is.factor(group) || nlevels(group) < 2L) {
+    stop("'group' must be a factor with at least two levels.", call. = FALSE)
+  }
+  .validate_wdstest_vector_length(group, attr(dm, "Size"), "group")
+  ns <- table(group)
+  SS2 <- dist.ss2(as.matrix(dm)^2, group)
   s2 <- diag(SS2) / ns / (ns - 1)
   W <- sum(ns / s2)
 
-  idxs <- apply(utils::combn(levels(f), 2), 2, function(idx) levels(f) %in% idx)
+  idxs <- apply(utils::combn(levels(group), 2), 2, function(idx) levels(group) %in% idx)
 
   Ws <- sum(apply(
     idxs, 2,
@@ -111,7 +139,7 @@ WdS <- function(dm, f) {
         (sum(SS2[idx, idx]) / sum(ns[idx]) - sum(diag(SS2[idx, idx]) / ns[idx]))
     }
   ))
-  k <- nlevels(f)
+  k <- nlevels(group)
   h <- sum((1 - ns / s2 / W)^2 / (ns - 1))
   Ws / W / (k - 1) / (1 + (2 * (k - 2) / (k^2 - 1)) * h)
 }

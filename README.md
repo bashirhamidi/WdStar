@@ -65,23 +65,41 @@ data("enterotype", package = "phyloseq")
 ent <- subset_samples(enterotype, !is.na(Enterotype))
 dm <- distance(ent, method = "bray")
 meta <- data.frame(sample_data(ent))
-f <- factor(meta$Enterotype)
+group <- factor(meta$Enterotype)
 
 # Basic multivariate test.
-WdS.test(dm = dm, f = f)
+WdS.test(
+  dm = dm,
+  group = Enterotype,
+  data = sample_data(ent)
+)
 
 ## By default, the unadjusted test's goodness.of.fit reports the distance-based
-## pseudo-R-squared for the tested factor.
-unadjusted_res <- WdS.test(dm = dm, f = f)
+## pseudo-R-squared for the tested group.
+unadjusted_res <- WdS.test(
+  dm = dm,
+  group = "Enterotype",
+  data = sample_data(ent)
+)
 unadjusted_res$goodness.of.fit
 
 ## Use goodness = "none" to skip goodness-of-fit calculations.
-WdS.test(dm = dm, f = f, goodness = "none")
+WdS.test(
+  dm = dm,
+  group = Enterotype,
+  data = sample_data(ent),
+  goodness = "none"
+)
 
 # Stratified permutation example.
 ## This restricts permutations within sequencing technology. It is shown as a
 ## separate design choice from adjustment by SeqTech below.
-WdS.test(dm = dm, f = f, strata = factor(meta$SeqTech))
+WdS.test(
+  dm = dm,
+  group = Enterotype,
+  strata = SeqTech,
+  data = sample_data(ent)
+)
 
 # Covariate adjustment/elimination examples #
 #############################################
@@ -89,19 +107,19 @@ WdS.test(dm = dm, f = f, strata = factor(meta$SeqTech))
 ## WdS.test(). Here SeqTech is a categorical covariate.
 WdS.test(
   dm = dm,
-  f = f,
-  formula = ~ SeqTech,
-  formula_data = sample_data(ent)
+  group = Enterotype,
+  adjustment = ~ SeqTech,
+  data = sample_data(ent)
 )
 
 ## By default, goodness.of.fit reports the distance-based semi-partial
-## pseudo-R-squared for the tested factor after adjustment.
+## pseudo-R-squared for the tested group after adjustment.
 ## Additional components computed along the way are stored but not printed.
 res <- WdS.test(
   dm = dm,
-  f = f,
-  formula = ~ SeqTech,
-  formula_data = sample_data(ent)
+  group = Enterotype,
+  adjustment = ~ SeqTech,
+  data = sample_data(ent)
 )
 res$goodness.components
 
@@ -109,21 +127,21 @@ res$goodness.components
 ## stored separately from goodness-of-fit values.
 res$distance.diagnostics
 
-## Request all available goodness-of-fit components, including factor-only,
+## Request all available goodness-of-fit components, including group-only,
 ## adjustment-only, full-model, semi-partial, and partial pseudo-R-squared.
 WdS.test(
   dm = dm,
-  f = f,
-  formula = ~ SeqTech,
-  formula_data = sample_data(ent),
+  group = Enterotype,
+  adjustment = ~ SeqTech,
+  data = sample_data(ent),
   goodness = "all"
 )
 
 ## Interpretation of adjusted components:
 ## - adjustment: variation explained by the adjustment variables alone.
-## - full: variation explained jointly by adjustment variables and the tested factor.
-## - semi.partial: additional total variation explained by the tested factor after adjustment.
-## - partial: adjustment-residual variation explained by the tested factor.
+## - full: variation explained jointly by adjustment variables and the tested group.
+## - semi.partial: additional total variation explained by the tested group after adjustment.
+## - partial: adjustment-residual variation explained by the tested group.
 ## Negative values can occur if the residual distances contain more variation
 ## than the original distance matrix.
 
@@ -131,30 +149,33 @@ WdS.test(
 ## enterotype, so this example builds a matching Age-complete distance matrix.
 ent_age <- subset_samples(enterotype, !is.na(Enterotype) & !is.na(Age))
 dm_age <- distance(ent_age, method = "bray")
-meta_age <- data.frame(sample_data(ent_age))
 
 WdS.test(
   dm = dm_age,
-  f = factor(meta_age$Enterotype),
-  formula = ~ Age,
-  formula_data = sample_data(ent_age)
+  group = Enterotype,
+  adjustment = ~ Age,
+  data = sample_data(ent_age)
 )
 
 ## Adjustment example 2: create the adjusted distance matrix `a.dm` outside the
 ## function, then pass it to WdS.test().
 a.dm <- a.dist(
   dm = dm,
-  formula = ~ SeqTech,
-  formula_data = sample_data(ent)
+  adjustment = ~ SeqTech,
+  data = sample_data(ent)
 )
-WdS.test(dm = a.dm, f = f)
+WdS.test(
+  dm = a.dm,
+  group = Enterotype,
+  data = sample_data(ent)
+)
 attr(a.dm, "distance.diagnostics")
 
 ## Store raw eigenvalues only when deeper diagnostics are needed.
 a.dm.with.eigenvalues <- a.dist(
   dm = dm,
-  formula = ~ SeqTech,
-  formula_data = sample_data(ent),
+  adjustment = ~ SeqTech,
+  data = sample_data(ent),
   keep.eigenvalues = TRUE
 )
 length(attr(a.dm.with.eigenvalues, "distance.diagnostics")$eigenvalues[[1]])
@@ -167,7 +188,7 @@ dist.goodness.of.fit(dm = dm, dm_residual = a.dm)
 ## loops over all taxa in enterotype, so it may take longer than a single test.
 taxa_rank <- WdS.taxa.importance(
   dm = dm,
-  f = f,
+  group = group,
   physeq = ent,
   nrep = 9
 )
@@ -177,10 +198,10 @@ head(taxa_rank[, c("taxon", "Genus", "rank", "importance", "p.value"),
 ## Add sample-level terms to every taxon-specific adjustment model.
 taxa_rank_seqtech <- WdS.taxa.importance(
   dm = dm,
-  f = f,
+  group = group,
   physeq = ent,
-  formula = ~ SeqTech,
-  formula_data = sample_data(ent),
+  adjustment = ~ SeqTech,
+  data = sample_data(ent),
   rank.by = "adjustment.goodness.of.fit",
   nrep = 9
 )

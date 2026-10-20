@@ -6,25 +6,26 @@
 \usage{
 a.dist(
   dm,
-  formula,
-  formula_data = parent.frame(),
+  adjustment,
+  data = parent.frame(),
   tol = 10^-8,
   distance.diagnostics = TRUE,
-  keep.eigenvalues = FALSE
+  keep.eigenvalues = FALSE,
+  ...
 )
 }
 \arguments{
 \item{dm}{A distance matrix (any arbitrary distance or dissimilarity metric).}
 
-\item{formula}{Only the right-hand side of a typical formula, such as
-\code{~ SeqTech} or \code{~ Age + SeqTech}, is necessary. The formula has
-similar requirements as in \code{vegan::adonis()}.}
+\item{adjustment}{A required right-hand-side formula specifying the
+covariates to remove, such as \code{~ SeqTech} or \code{~ Age + SeqTech}.}
 
-\item{formula_data}{A dataset which contains the variables specified in
-formula. It may be an environment, data frame, list, or object coercible to
-a data frame, such as \code{phyloseq::sample_data()}. Row names should match
-the row names in distance matrix \code{dm}. If not provided, the parent
-frame will be used.}
+\item{data}{A dataset which contains the variables specified in \code{adjustment}.
+It may be an environment, data frame, list, or object coercible to a data
+frame, such as \code{phyloseq::sample_data()}. Row names should match the
+row names in distance matrix \code{dm}, with samples in the same order.
+If omitted or \code{NULL}, the calling environment is used. Formula
+variables are looked up in \code{data}, then in the formula environment.}
 
 \item{tol}{Tolerance for eigenvalues. This is the cutoff for the eigenvalues
 to be considered zero. Default is 10^-8.}
@@ -36,6 +37,12 @@ residual distance matrix. Default is \code{TRUE}.}
 \item{keep.eigenvalues}{Logical indicating whether to store the raw
 eigenvalues in the diagnostic summary. Default is \code{FALSE} to keep
 repeated simulations and large analyses memory-light.}
+
+\item{...}{Deprecated named aliases: \code{formula} for \code{adjustment}
+and \code{formula_data} for \code{data}. These warn when used. Supplying
+both an alias and its replacement is an error. Other arguments, including
+unnamed arguments in \code{...}, are rejected. The first six positional
+arguments retain their meaning; the fourth argument is still \code{tol}.}
 }
 \value{
 A covariate-adjusted distance matrix of class \code{dist}. When
@@ -106,8 +113,8 @@ if (requireNamespace("phyloseq", quietly = TRUE)) {
   ## covariate stored in phyloseq::sample_data(ent).
   a.dm <- a.dist(
     dm = dm,
-    formula = ~ SeqTech,
-    formula_data = phyloseq::sample_data(ent)
+    adjustment = ~ SeqTech,
+    data = phyloseq::sample_data(ent)
   )
   a.dm
   attr(a.dm, "distance.diagnostics")
@@ -122,8 +129,8 @@ if (requireNamespace("phyloseq", quietly = TRUE)) {
   dm_age <- phyloseq::distance(ent_age, method = "bray")
   a.dm.age <- a.dist(
     dm = dm_age,
-    formula = ~ Age,
-    formula_data = phyloseq::sample_data(ent_age)
+    adjustment = ~ Age,
+    data = phyloseq::sample_data(ent_age)
   )
   attr(a.dm.age, "distance.diagnostics")
 }
@@ -138,4 +145,7 @@ Shi Y, Zhang L, Do KA, Peterson CB, Jenq RR. aPCoA: covariate
   https://CRAN.R-project.org/package=aPCoA.
 
   Please cite both the package and the paper when using this function.
+}
+\seealso{
+\code{\link{WdS.test}}, \code{\link{dist.goodness.of.fit}}
 }

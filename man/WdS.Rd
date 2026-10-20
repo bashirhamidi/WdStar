@@ -4,12 +4,18 @@
 \alias{WdS}
 \title{Calculate the Wd* Statistic for Heteroscedastic Test}
 \usage{
-WdS(dm, f)
+WdS(dm, group, ...)
 }
 \arguments{
 \item{dm}{A distance matrix, representing dissimilarity between observations.}
 
-\item{f}{A factor variable indicating the group for each observation.}
+\item{group}{A grouping factor with at least two levels, in the same
+observation order as \code{dm}. Supply the factor directly; metadata-column
+lookup is available in \code{\link{WdS.test}}, not this function.}
+
+\item{...}{Deprecated named argument \code{f}, an alias for \code{group}.
+It warns when used and cannot be combined with \code{group}. No other
+extra arguments are accepted.}
 }
 \value{
 The calculated Wd* statistic.
@@ -32,10 +38,8 @@ if (requireNamespace("phyloseq", quietly = TRUE)) {
   data("enterotype", package = "phyloseq")
   ent <- phyloseq::subset_samples(enterotype, !is.na(Enterotype))
   dm <- phyloseq::distance(ent, method = "bray")
-  meta <- data.frame(phyloseq::sample_data(ent))
-  f <- factor(meta$Enterotype)
-
-  WdS(dm, f)
+  group <- factor(phyloseq::sample_data(ent)$Enterotype)
+  print(WdS(dm, group = group))
 }
 
 }

@@ -6,9 +6,9 @@
 \usage{
 WdS.feature.importance(
   dm,
-  f,
-  formula,
-  formula_data = parent.frame(),
+  group,
+  adjustment,
+  data = NULL,
   nrep = 999,
   strata = NULL,
   sort = TRUE,
@@ -19,19 +19,26 @@ WdS.feature.importance(
 \arguments{
 \item{dm}{A distance matrix (any arbitrary distance or dissimilarity metric).}
 
-\item{f}{A factor variable representing the groups.}
+\item{group}{The tested grouping variable. This may be a vector/factor, an
+unquoted column name in \code{data}, or a length-one character column name
+in \code{data}.}
 
-\item{formula}{A right-hand side ONLY formula containing the adjustment
+\item{adjustment}{A right-hand side ONLY formula containing the adjustment
 features to evaluate.}
 
-\item{formula_data}{An environment, data frame, list, or object coercible to a
+\item{data}{An environment, data frame, list, or object coercible to a
 data frame, such as \code{phyloseq::sample_data()}, to be used with
-\code{formula}. Default is \code{parent.frame()}.}
+\code{adjustment} and column lookup for \code{group} and \code{strata}.
+Omitted or \code{NULL} data uses the calling environment. Rows and external
+vectors must follow the sample order in \code{dm}.}
 
 \item{nrep}{The number of permutations to conduct for each
 \code{\link{WdS.test}} call. Default is 999.}
 
-\item{strata}{A factor variable representing strata. Default is \code{NULL}.}
+\item{strata}{(optional) A factor variable representing strata. If specified,
+the test will perform p-value computations using stratified permutation.
+This may be a vector/factor, an unquoted column name in \code{data}, or a
+length-one character column name in \code{data}. Default is \code{NULL}.}
 
 \item{sort}{Logical indicating whether to sort rows by importance. Default is
 \code{TRUE}.}
@@ -40,7 +47,8 @@ data frame, such as \code{phyloseq::sample_data()}, to be used with
 \code{TRUE}. Default is \code{TRUE}.}
 
 \item{...}{Additional arguments passed to \code{\link{WdS.test}}, such as
-\code{tol} for eigenvalue handling in \code{\link{a.dist}}.}
+\code{tol} for eigenvalue handling in \code{\link{a.dist}}. Goodness-of-fit
+selection is controlled internally for comparable importance scores.}
 }
 \value{
 A data frame with one row per adjustment feature. The
@@ -77,13 +85,12 @@ if (requireNamespace("phyloseq", quietly = TRUE)) {
   )
   dm <- phyloseq::distance(ent, method = "bray")
   meta <- data.frame(phyloseq::sample_data(ent))
-  f <- factor(meta$Enterotype)
 
   WdS.feature.importance(
     dm = dm,
-    f = f,
-    formula = ~ Gender + Age,
-    formula_data = phyloseq::sample_data(ent),
+    group = Enterotype,
+    adjustment = ~ Gender + Age,
+    data = phyloseq::sample_data(ent),
     nrep = 9
   )
 }

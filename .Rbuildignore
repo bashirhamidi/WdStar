@@ -13,3 +13,4 @@
 ^docs$
 ^evaluate_simulated_distances\.R$
 ^R2_comparison_v0\.4\.Rmd$
+^\.posit/assistant$

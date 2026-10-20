@@ -13,24 +13,31 @@
 #'
 is.dist <- function(x) any(class(x) == "dist")
 
-.as_formula_data <- function(formula_data) {
-  if (is.environment(formula_data)) {
-    return(formula_data)
+.as_formula_data <- function(data, arg = "data") {
+  if (is.environment(data)) {
+    return(data)
   }
 
   data <- tryCatch(
-    data.frame(formula_data, check.names = FALSE),
+    data.frame(data, check.names = FALSE),
     error = function(e) e
   )
 
   if (inherits(data, "error")) {
     stop(
-      "'formula_data' must be an environment, data frame, list, or coercible to a data frame.",
+      "'", arg, "' must be an environment, data frame, list, or coercible to a data frame.",
       call. = FALSE
     )
   }
 
   data
+}
+
+.warn_deprecated_argument <- function(old, new, fn) {
+  warning(
+    "'", old, "' is deprecated in ", fn, "(); use '", new, "' instead.",
+    call. = FALSE
+  )
 }
 
 #' Calculate Sigma Squared for Distance Matrix
@@ -67,7 +74,6 @@ dist.sigma2 <- function(dm) {
 #' @param dm_residual A residual distance matrix after removing a model
 #'   component, such as a grouping factor, adjustment variables, or their full
 #'   model.
-#' @param adjusted_dm Optional compatibility alias for \code{dm_residual}.
 #'
 #' @return Distance-based pseudo-\eqn{R^2}. Returns \code{NA_real_} when the
 #'   original distance matrix has zero total variation.
@@ -89,22 +95,13 @@ dist.sigma2 <- function(dm) {
 #'
 #'   dm_residual <- a.dist(
 #'     dm = dm,
-#'     formula = ~ SeqTech,
-#'     formula_data = phyloseq::sample_data(ent)
+#'     adjustment = ~ SeqTech,
+#'     data = phyloseq::sample_data(ent)
 #'   )
 #'   dist.goodness.of.fit(dm, dm_residual)
 #' }
 #'
-dist.goodness.of.fit <- function(dm, dm_residual = NULL, adjusted_dm = NULL) {
-  # adjusted_dm is retained as a compatibility alias from the first development
-  # version of this helper. New code should prefer dm_residual because the
-  # residual matrix may come from a factor, adjustment variables, or a full model.
-  if (!is.null(adjusted_dm)) {
-    if (!is.null(dm_residual)) {
-      stop("Provide only one of 'dm_residual' or 'adjusted_dm'.")
-    }
-    dm_residual <- adjusted_dm
-  }
+dist.goodness.of.fit <- function(dm, dm_residual = NULL) {
   if (is.null(dm_residual)) {
     stop("'dm_residual' must be provided.")
   }
@@ -123,7 +120,7 @@ dist.goodness.of.fit <- function(dm, dm_residual = NULL, adjusted_dm = NULL) {
   # If all original distances are zero, the total variation denominator is zero,
   # so the pseudo-R2 is undefined rather than 0.
   goodness.of.fit <- if (ss_total == 0) NA_real_ else 1 - (ss_residual / ss_total)
-  attr(goodness.of.fit, "names") <- "distance-based pseudo-R\u00B2"
+  attr(goodness.of.fit, "names") <- "pseudo-R\u00B2"
   goodness.of.fit
 }
 
@@ -231,15 +228,15 @@ dist.cohen.d <- function(dm, f) {
 #'
 #' @param dm A distance matrix (any arbitrary distance or dissimilarity metric).
 #'
-#' @param formula Only the right-hand side of a typical formula, such as
-#'   \code{~ SeqTech} or \code{~ Age + SeqTech}, is necessary. The formula has
-#'   similar requirements as in \code{vegan::adonis()}.
+#' @param adjustment A required right-hand-side formula specifying the
+#'   covariates to remove, such as \code{~ SeqTech} or \code{~ Age + SeqTech}.
 #'
-#' @param formula_data A dataset which contains the variables specified in
-#'   formula. It may be an environment, data frame, list, or object coercible to
-#'   a data frame, such as \code{phyloseq::sample_data()}. Row names should match
-#'   the row names in distance matrix \code{dm}. If not provided, the parent
-#'   frame will be used.
+#' @param data A dataset which contains the variables specified in \code{adjustment}.
+#'   It may be an environment, data frame, list, or object coercible to a data
+#'   frame, such as \code{phyloseq::sample_data()}. Row names should match the
+#'   row names in distance matrix \code{dm}, with samples in the same order.
+#'   If omitted or \code{NULL}, the calling environment is used. Formula
+#'   variables are looked up in \code{data}, then in the formula environment.
 #' @param tol Tolerance for eigenvalues. This is the cutoff for the eigenvalues
 #'   to be considered zero. Default is 10^-8.
 #' @param distance.diagnostics Logical indicating whether to attach a compact
@@ -248,6 +245,11 @@ dist.cohen.d <- function(dm, f) {
 #' @param keep.eigenvalues Logical indicating whether to store the raw
 #'   eigenvalues in the diagnostic summary. Default is \code{FALSE} to keep
 #'   repeated simulations and large analyses memory-light.
+#' @param ... Deprecated named aliases: \code{formula} for \code{adjustment}
+#'   and \code{formula_data} for \code{data}. These warn when used. Supplying
+#'   both an alias and its replacement is an error. Other arguments, including
+#'   unnamed arguments in \code{...}, are rejected. The first six positional
+#'   arguments retain their meaning; the fourth argument is still \code{tol}.
 #'
 #' @return A covariate-adjusted distance matrix of class \code{dist}. When
 #'   \code{distance.diagnostics = TRUE}, the returned object has a
@@ -306,7 +308,7 @@ dist.cohen.d <- function(dm, f) {
 #'   https://CRAN.R-project.org/package=aPCoA.
 #'
 #'   Please cite both the package and the paper when using this function.
-#'
+#' @seealso \code{\link{WdS.test}}, \code{\link{dist.goodness.of.fit}}
 #' @export
 #' @examples
 #' if (requireNamespace("phyloseq", quietly = TRUE)) {
@@ -320,8 +322,8 @@ dist.cohen.d <- function(dm, f) {
 #'   ## covariate stored in phyloseq::sample_data(ent).
 #'   a.dm <- a.dist(
 #'     dm = dm,
-#'     formula = ~ SeqTech,
-#'     formula_data = phyloseq::sample_data(ent)
+#'     adjustment = ~ SeqTech,
+#'     data = phyloseq::sample_data(ent)
 #'   )
 #'   a.dm
 #'   attr(a.dm, "distance.diagnostics")
@@ -336,21 +338,60 @@ dist.cohen.d <- function(dm, f) {
 #'   dm_age <- phyloseq::distance(ent_age, method = "bray")
 #'   a.dm.age <- a.dist(
 #'     dm = dm_age,
-#'     formula = ~ Age,
-#'     formula_data = phyloseq::sample_data(ent_age)
+#'     adjustment = ~ Age,
+#'     data = phyloseq::sample_data(ent_age)
 #'   )
 #'   attr(a.dm.age, "distance.diagnostics")
 #' }
 #'
-a.dist = function(dm, formula, formula_data=parent.frame(), tol=10^-8,
-                  distance.diagnostics = TRUE, keep.eigenvalues = FALSE)
+a.dist = function(dm, adjustment, data = parent.frame(), tol=10^-8,
+                  distance.diagnostics = TRUE, keep.eigenvalues = FALSE,
+                  ...)
 {
+  # Capture aliases before evaluating them so conflicts and misspellings fail
+  # clearly. Evaluate their values in the user's frame, not a helper's frame.
+  caller <- parent.frame()
+  dots <- as.list(match.call(expand.dots = FALSE)$...)
+  dot_names <- names(dots)
+  if (length(dots) && (is.null(dot_names) || any(!nzchar(dot_names)))) {
+    stop("Arguments in '...' must be named.", call. = FALSE)
+  }
+  unknown <- setdiff(dot_names, c("formula", "formula_data"))
+  if (length(unknown)) {
+    stop("Unused argument(s): ", paste(unknown, collapse = ", "), call. = FALSE)
+  }
+  if (anyDuplicated(dot_names)) {
+    stop("Deprecated arguments must not be supplied more than once.", call. = FALSE)
+  }
+  if ("formula" %in% dot_names) {
+    if (!missing(adjustment)) {
+      stop("Use only one of 'adjustment' or deprecated 'formula'.", call. = FALSE)
+    }
+    .warn_deprecated_argument("formula", "adjustment", "a.dist")
+    adjustment <- eval(dots$formula, envir = caller)
+  } else if (missing(adjustment)) {
+    stop("'adjustment' must be provided.", call. = FALSE)
+  }
+  if ("formula_data" %in% dot_names) {
+    if (!missing(data)) {
+      stop("Use only one of 'data' or deprecated 'formula_data'.", call. = FALSE)
+    }
+    .warn_deprecated_argument("formula_data", "data", "a.dist")
+    data <- eval(dots$formula_data, envir = caller)
+  }
+  if (is.null(adjustment)) {
+    stop("'adjustment' must be provided.", call. = FALSE)
+  }
+  # Keep the existing calculation's local name and stored diagnostic field.
+  # This validates formula syntax without changing intercept or rank handling.
+  formula <- .as_wdstest_adjustment(adjustment)
+  if (is.null(data)) data <- caller
   .validate_distance_diagnostic_options(distance.diagnostics, keep.eigenvalues)
   if (!is.numeric(tol) || length(tol) != 1 || is.na(tol) || tol < 0) {
     stop("'tol' must be a single non-negative numeric value.")
   }
 
-  data <- .as_formula_data(formula_data)
+  data <- .as_formula_data(data, arg = "data")
   Terms <- stats::terms(formula, data = data)
   # lhs <- formula[[2]]
   # lhs <- eval(lhs, data, parent.frame())

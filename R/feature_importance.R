@@ -6,21 +6,23 @@
 #' remaining terms and ranks features by the loss in adjustment goodness-of-fit.
 #'
 #' @param dm A distance matrix (any arbitrary distance or dissimilarity metric).
-#' @param f A factor variable representing the groups.
-#' @param formula A right-hand side ONLY formula containing the adjustment
+#' @inheritParams WdS.test
+#' @param adjustment A right-hand side ONLY formula containing the adjustment
 #'   features to evaluate.
-#' @param formula_data An environment, data frame, list, or object coercible to a
+#' @param data An environment, data frame, list, or object coercible to a
 #'   data frame, such as \code{phyloseq::sample_data()}, to be used with
-#'   \code{formula}. Default is \code{parent.frame()}.
+#'   \code{adjustment} and column lookup for \code{group} and \code{strata}.
+#'   Omitted or \code{NULL} data uses the calling environment. Rows and external
+#'   vectors must follow the sample order in \code{dm}.
 #' @param nrep The number of permutations to conduct for each
 #'   \code{\link{WdS.test}} call. Default is 999.
-#' @param strata A factor variable representing strata. Default is \code{NULL}.
 #' @param sort Logical indicating whether to sort rows by importance. Default is
 #'   \code{TRUE}.
 #' @param decreasing Logical indicating the sort direction when \code{sort} is
 #'   \code{TRUE}. Default is \code{TRUE}.
 #' @param ... Additional arguments passed to \code{\link{WdS.test}}, such as
-#'   \code{tol} for eigenvalue handling in \code{\link{a.dist}}.
+#'   \code{tol} for eigenvalue handling in \code{\link{a.dist}}. Goodness-of-fit
+#'   selection is controlled internally for comparable importance scores.
 #'
 #' @return A data frame with one row per adjustment feature. The
 #'   \code{importance} column is the decrease in adjustment-only
@@ -51,42 +53,47 @@
 #'   )
 #'   dm <- phyloseq::distance(ent, method = "bray")
 #'   meta <- data.frame(phyloseq::sample_data(ent))
-#'   f <- factor(meta$Enterotype)
 #'
 #'   WdS.feature.importance(
 #'     dm = dm,
-#'     f = f,
-#'     formula = ~ Gender + Age,
-#'     formula_data = phyloseq::sample_data(ent),
+#'     group = Enterotype,
+#'     adjustment = ~ Gender + Age,
+#'     data = phyloseq::sample_data(ent),
 #'     nrep = 9
 #'   )
 #' }
-WdS.feature.importance <- function(dm, f, formula, formula_data = parent.frame(),
+WdS.feature.importance <- function(dm, group, adjustment, data = NULL,
                                    nrep = 999, strata = NULL, sort = TRUE,
                                    decreasing = TRUE, ...) {
-  if (missing(formula) || is.null(formula)) {
-    stop("'formula' must be provided to compute feature importance.")
+  # Resolve user expressions once before fitting the full and reduced models.
+  args <- .resolve_importance_arguments(match.call(expand.dots = FALSE),
+                                       parent.frame(), dm)
+  group <- args$group
+  strata <- args$strata
+  formula <- args$adjustment
+  data <- args$data
+  if (is.null(formula)) {
+    stop("'adjustment' must be provided to compute feature importance.")
   }
-
-  data <- .as_formula_data(formula_data)
   formula_terms <- attr(stats::terms(formula, data = data), "term.labels")
 
   if (length(formula_terms) < 1) {
-    stop("'formula' must contain at least one adjustment feature.")
+    stop("'adjustment' must contain at least one adjustment feature.")
   }
 
-  full_result <- WdS.test(
+  # Pass resolved vectors as values so metadata columns named group or strata
+  # cannot replace them when WdS.test() performs its own argument lookup.
+  full_result <- do.call(WdS.test, c(list(
     dm = dm,
-    f = f,
+    group = group,
     nrep = nrep,
     strata = strata,
-    formula = formula,
-    formula_data = data,
+    adjustment = formula,
+    data = data,
     # Feature importance ranks adjustment features, so use the adjustment-only
-    # pseudo-R2 rather than WdS.test()'s default factor/semi-partial component.
-    goodness = "adjustment",
-    ...
-  )
+    # pseudo-R2 rather than WdS.test()'s default group/semi-partial component.
+    goodness = "adjustment"
+  ), args$dots))
   full_goodness_of_fit <- unname(full_result$goodness.of.fit)
 
   rows <- vector("list", length(formula_terms))
@@ -100,15 +107,17 @@ WdS.feature.importance <- function(dm, f, formula, formula_data = parent.frame()
     if (length(remaining_features) == 0) {
       leave_one_out_formula <- NULL
       leave_one_out_formula_text <- NA_character_
-      leave_one_out_result <- WdS.test(
+      # Forward diagnostic settings even when no adjustment features remain.
+      # In particular, an input distance may already carry diagnostics.
+      leave_one_out_result <- do.call(WdS.test, c(list(
         dm = dm,
-        f = f,
+        group = group,
         nrep = nrep,
         strata = strata,
         # Removing the only adjustment feature leaves no adjustment model; use
         # zero as the adjustment-only goodness baseline.
         goodness = "none"
-      )
+      ), args$dots))
       leave_one_out_goodness_of_fit <- 0
     } else {
       leave_one_out_formula <- stats::as.formula(
@@ -116,18 +125,17 @@ WdS.feature.importance <- function(dm, f, formula, formula_data = parent.frame()
         env = environment(formula)
       )
       leave_one_out_formula_text <- paste(deparse(leave_one_out_formula), collapse = "")
-      leave_one_out_result <- WdS.test(
+      leave_one_out_result <- do.call(WdS.test, c(list(
         dm = dm,
-        f = f,
+        group = group,
         nrep = nrep,
         strata = strata,
-        formula = leave_one_out_formula,
-        formula_data = data,
+        adjustment = leave_one_out_formula,
+        data = data,
         # Keep the leave-one-out score on the same adjustment-only scale as the
         # complete adjustment formula.
-        goodness = "adjustment",
-        ...
-      )
+        goodness = "adjustment"
+      ), args$dots))
       leave_one_out_goodness_of_fit <- unname(leave_one_out_result$goodness.of.fit)
     }
 
@@ -166,11 +174,11 @@ WdS.feature.importance <- function(dm, f, formula, formula_data = parent.frame()
 #'
 #' This function ranks ASVs, OTUs, or other taxa by adjusting for one taxon at a
 #' time in \code{\link{WdS.test}}. For each taxon, the taxon abundance vector is
-#' used as the adjustment formula, and the tested factor's goodness-of-fit after
-#' that adjustment is compared with the unadjusted factor goodness-of-fit.
+#' used as the adjustment formula, and the tested group's goodness-of-fit after
+#' that adjustment is compared with the unadjusted group goodness-of-fit.
 #'
 #' @param dm A distance matrix (any arbitrary distance or dissimilarity metric).
-#' @param f A factor variable representing the groups.
+#' @inheritParams WdS.test
 #' @param physeq Optional \code{phyloseq} object. When supplied,
 #'   \code{taxa_table} is extracted with \code{phyloseq::otu_table()} and
 #'   taxonomy is extracted with \code{phyloseq::tax_table()}, if available.
@@ -187,24 +195,27 @@ WdS.feature.importance <- function(dm, f, formula, formula_data = parent.frame()
 #'   non-missing value. Use \code{"all"} for every available rank, a character
 #'   vector such as \code{c("Genus", "Species")} for selected ranks, or
 #'   \code{NULL} to omit taxonomy columns.
-#' @param formula Optional right-hand side formula controlling the adjustment
+#' @param adjustment Optional right-hand side formula controlling the adjustment
 #'   model used for each taxon. The default \code{NULL} performs a taxon-only
-#'   adjustment, equivalent to \code{~ .wdstar_taxon}. If \code{formula} does
+#'   adjustment, equivalent to \code{~ .wdstar_taxon}. If \code{adjustment} does
 #'   not include \code{.wdstar_taxon}, the taxon term is added automatically.
-#'   For example, \code{formula = ~ Subject_ID} evaluates each taxon with
-#'   \code{~ Subject_ID + .wdstar_taxon}. If \code{formula} includes
+#'   For example, \code{adjustment = ~ Subject_ID} evaluates each taxon with
+#'   \code{~ Subject_ID + .wdstar_taxon}. If \code{adjustment} includes
 #'   \code{.wdstar_taxon}, it is used as supplied, allowing formulas such as
 #'   \code{~ .wdstar_taxon * Subject_ID}.
-#' @param formula_data Optional sample metadata used with \code{formula}. This
+#' @param data Optional sample metadata used with \code{adjustment}. This
 #'   may be an environment, data frame, list, or object coercible to a data
 #'   frame, such as \code{phyloseq::sample_data()}. Row names are used to align
-#'   data-frame-like inputs to \code{dm} labels when available.
+#'   data-frame-like inputs to \code{dm} labels before looking up \code{group}
+#'   and \code{strata}. Omitted or \code{NULL} data uses the calling environment;
+#'   metadata is not automatically extracted from \code{physeq}. External
+#'   vectors must already follow \code{dm} order. Without meaningful row names,
+#'   metadata rows must also follow \code{dm} order.
 #' @param rank.by Column used for ranking. The default,
 #'   \code{"delta.factor.goodness.of.fit"}, ranks taxa by how much the tested
-#'   factor's pseudo-\eqn{R^2} decreases after adjusting for that taxon.
+#'   group's pseudo-\eqn{R^2} decreases after adjusting for that taxon.
 #' @param nrep The number of permutations to conduct for each
 #'   \code{\link{WdS.test}} call. Default is 999.
-#' @param strata A factor variable representing strata. Default is \code{NULL}.
 #' @param distance.diagnostics Logical passed to \code{\link{WdS.test}}. Default
 #'   is \code{FALSE} to keep large taxa scans compact.
 #' @param keep.eigenvalues Logical passed to \code{\link{WdS.test}}. Default is
@@ -229,10 +240,10 @@ WdS.feature.importance <- function(dm, f, formula, formula_data = parent.frame()
 #'   taxon-specific formula passed to \code{\link{WdS.test}}. The
 #'   \code{adjustment.goodness.of.fit} column is the distance-based
 #'   pseudo-\eqn{R^2} explained by that full adjustment formula. This is taxon
-#'   only when \code{formula = NULL}, and taxon plus the requested sample-level
-#'   terms when \code{formula} is supplied. The
+#'   only when \code{adjustment = NULL}, and taxon plus the requested sample-level
+#'   terms when \code{adjustment} is supplied. The
 #'   \code{factor.goodness.of.fit.after.adjustment} column is the tested
-#'   factor's semi-partial pseudo-\eqn{R^2} after adjusting for that formula.
+#'   group's semi-partial pseudo-\eqn{R^2} after adjusting for that formula.
 #'   The default \code{importance} value is
 #'   \code{factor.goodness.of.fit.unadjusted -
 #'   factor.goodness.of.fit.after.adjustment}.
@@ -241,20 +252,20 @@ WdS.feature.importance <- function(dm, f, formula, formula_data = parent.frame()
 #' abundances are used exactly as supplied; transform, normalize, or aggregate
 #' upstream if that is desired.
 #'
-#' The default ranking asks: how much of the tested factor's distance-based
+#' The default ranking asks: how much of the tested group's distance-based
 #' goodness-of-fit is reduced when this taxon is adjusted out? Larger
 #' \code{delta.factor.goodness.of.fit} values indicate taxa that account for more
-#' of the distance structure otherwise attributed to the tested factor. The
+#' of the distance structure otherwise attributed to the tested group. The
 #' separate \code{adjustment.goodness.of.fit} column answers a different
 #' question: how much total distance variation is explained by the whole
 #' taxon-specific adjustment formula?
 #'
-#' Use \code{formula} when each taxon should be evaluated with additional
+#' Use \code{adjustment} when each taxon should be evaluated with additional
 #' sample-level adjustment terms. For paired or repeated-measures designs,
-#' \code{formula = ~ Subject_ID} evaluates each taxon after adding
+#' \code{adjustment = ~ Subject_ID} evaluates each taxon after adding
 #' \code{Subject_ID} to the adjustment model. To control the exact placement of
 #' the taxon term, include the reserved placeholder \code{.wdstar_taxon}
-#' directly in \code{formula}.
+#' directly in \code{adjustment}.
 #'
 #' Constant taxa are retained in the output with \code{tested = FALSE} and
 #' missing test statistics because they cannot form a usable one-taxon
@@ -272,14 +283,14 @@ WdS.feature.importance <- function(dm, f, formula, formula_data = parent.frame()
 #'   ent <- phyloseq::subset_samples(enterotype, !is.na(Enterotype))
 #'   dm <- phyloseq::distance(ent, method = "bray")
 #'   meta <- data.frame(phyloseq::sample_data(ent))
-#'   f <- factor(meta$Enterotype)
 #'
-#'   ## Rank taxa by how much the tested factor's goodness-of-fit changes after
+#'   ## Rank taxa by how much the tested group's goodness-of-fit changes after
 #'   ## each taxon is adjusted out.
 #'   taxa_rank <- WdS.taxa.importance(
 #'     dm = dm,
-#'     f = f,
+#'     group = Enterotype,
 #'     physeq = ent,
+#'     data = phyloseq::sample_data(ent),
 #'     nrep = 9
 #'   )
 #'   taxa_rank[, c("taxon", "Genus", "rank", "importance", "p.value"),
@@ -288,10 +299,10 @@ WdS.feature.importance <- function(dm, f, formula, formula_data = parent.frame()
 #'   ## Add a sample-level covariate to every taxon-specific adjustment model.
 #'   taxa_rank_seqtech <- WdS.taxa.importance(
 #'     dm = dm,
-#'     f = f,
+#'     group = Enterotype,
 #'     physeq = ent,
-#'     formula = ~ SeqTech,
-#'     formula_data = phyloseq::sample_data(ent),
+#'     adjustment = ~ SeqTech,
+#'     data = phyloseq::sample_data(ent),
 #'     rank.by = "adjustment.goodness.of.fit",
 #'     nrep = 9
 #'   )
@@ -299,7 +310,7 @@ WdS.feature.importance <- function(dm, f, formula, formula_data = parent.frame()
 #'                     with = FALSE]
 #' }
 #' }
-WdS.taxa.importance <- function(dm, f, physeq = NULL, taxa_table = NULL,
+WdS.taxa.importance <- function(dm, group, physeq = NULL, taxa_table = NULL,
                                 taxonomy_table = NULL, taxa_are_rows = TRUE,
                                 taxonomy.ranks = "auto",
                                 rank.by = c("delta.factor.goodness.of.fit",
@@ -317,14 +328,16 @@ WdS.taxa.importance <- function(dm, f, physeq = NULL, taxa_table = NULL,
                                 keep.eigenvalues = FALSE,
                                 keep.tests = FALSE,
                                 sort = TRUE, decreasing = NULL,
-                                verbose = FALSE, formula = NULL,
-                                formula_data = parent.frame(), ...) {
-  if (!is.dist(dm)) {
-    stop("'dm' must be a distance matrix of class 'dist'.")
-  }
-  if (length(f) != attr(dm, "Size")) {
-    stop("'f' must have the same length as the number of observations in 'dm'.")
-  }
+                                verbose = FALSE, adjustment = NULL,
+                                data = NULL, ...) {
+  # Align metadata before resolving its group and strata columns, so all
+  # vectors refer to the same sample order as the distance and abundance data.
+  args <- .resolve_importance_arguments(match.call(expand.dots = FALSE),
+                                       parent.frame(), dm, align_data = TRUE)
+  group <- args$group
+  strata <- args$strata
+  formula <- args$adjustment
+  data <- args$data
   .validate_logical_scalar(taxa_are_rows, "taxa_are_rows")
   .validate_logical_scalar(distance.diagnostics, "distance.diagnostics")
   .validate_logical_scalar(keep.eigenvalues, "keep.eigenvalues")
@@ -342,18 +355,7 @@ WdS.taxa.importance <- function(dm, f, physeq = NULL, taxa_table = NULL,
     decreasing <- !(rank.by %in% c("p.value", "factor.goodness.of.fit.after.adjustment"))
   }
 
-  dots <- list(...)
-  # WdS.taxa.importance() must control goodness itself so every taxon row has
-  # comparable adjustment, semi-partial, full, and partial goodness columns.
-  reserved_dots <- intersect(names(dots), "goodness")
-  if (length(reserved_dots) > 0) {
-    stop(
-      "The following WdS.test() arguments are controlled by WdS.taxa.importance(): ",
-      paste(reserved_dots, collapse = ", "),
-      "."
-    )
-  }
-  .validate_taxa_importance_formula(formula)
+  dots <- args$dots
 
   # Convert either a phyloseq object or user-supplied abundance table into a
   # sample-by-taxon numeric matrix. No abundance transformation is done here.
@@ -374,11 +376,10 @@ WdS.taxa.importance <- function(dm, f, physeq = NULL, taxa_table = NULL,
     taxonomy.ranks = taxonomy.ranks
   )
   taxon_summary <- .summarize_taxa_matrix(taxa_matrix)
-  # formula_data is only needed when the user supplies sample-level adjustment
-  # terms, such as Subject_ID. It is aligned to dm labels before the scan.
+  # The resolved metadata also supports group/strata lookup in taxon-only scans.
   taxa_formula_data <- .prepare_taxa_importance_formula_data(
     formula = formula,
-    formula_data = formula_data,
+    formula_data = data,
     dm = dm
   )
   # Use one reserved placeholder for the taxon abundance vector. Real taxon IDs
@@ -391,22 +392,22 @@ WdS.taxa.importance <- function(dm, f, physeq = NULL, taxa_table = NULL,
   )
   taxon_formula_text <- paste(deparse(taxon_formula), collapse = "")
 
-  # The unadjusted factor-only fit does not depend on the taxon being scanned,
+  # The unadjusted group-only fit does not depend on the taxon being scanned,
   # so compute it once and reuse it for delta.factor.goodness.of.fit.
   baseline_result <- .run_taxa_importance_wdstest(
     args = list(
       dm = dm,
-      f = f,
+      group = group,
       nrep = nrep,
       strata = strata,
-      goodness = "factor.only",
+      goodness = "group.only",
       distance.diagnostics = distance.diagnostics,
       keep.eigenvalues = keep.eigenvalues
     ),
     dots = dots,
     verbose = verbose
   )
-  factor_goodness_unadjusted <- .extract_goodness_value(baseline_result, "factor.only")
+  factor_goodness_unadjusted <- .extract_goodness_value(baseline_result, "group.only")
   omega_unadjusted <- unname(baseline_result$estimate)
 
   rows <- vector("list", ncol(taxa_matrix))
@@ -448,11 +449,11 @@ WdS.taxa.importance <- function(dm, f, physeq = NULL, taxa_table = NULL,
     adjusted_result <- .run_taxa_importance_wdstest(
       args = list(
         dm = dm,
-        f = f,
+        group = group,
         nrep = nrep,
         strata = strata,
-        formula = taxon_formula,
-        formula_data = formula_data,
+        adjustment = taxon_formula,
+        data = formula_data,
         goodness = c("adjustment", "semi.partial"),
         distance.diagnostics = distance.diagnostics,
         keep.eigenvalues = keep.eigenvalues
@@ -543,6 +544,45 @@ WdS.taxa.importance <- function(dm, f, physeq = NULL, taxa_table = NULL,
   # a fresh table and cannot be affected by by-reference column-order side effects.
   result <- result[, final_columns, with = FALSE]
   result
+}
+
+.resolve_importance_arguments <- function(call, envir, dm, align_data = FALSE) {
+  if (!is.dist(dm)) {
+    stop("'dm' must be a distance matrix of class 'dist'.", call. = FALSE)
+  }
+  dots <- as.list(call$...)
+  # These functions expose only the new interface. Reject old names here so
+  # they cannot reach WdS.test() and activate its compatibility aliases.
+  unsupported <- intersect(names(dots), c("f", "formula", "formula_data", "goodness"))
+  if (length(unsupported)) {
+    stop("Unsupported argument(s): ", paste(unsupported, collapse = ", "),
+         ". Use group, adjustment, and data; goodness is controlled internally.",
+         call. = FALSE)
+  }
+  if (is.null(call$group)) stop("'group' must be provided.", call. = FALSE)
+  metadata <- .resolve_wdstest_data(call$data, NULL, envir)
+  if (align_data && !is.environment(metadata$data)) {
+    metadata$data <- .align_formula_data_to_dist(metadata$data, dm)
+  }
+  # Use the same lookup rules as WdS.test(): data columns first, then vectors
+  # in the caller's environment. External vectors must already follow dm order.
+  group <- .resolve_wdstest_variable(call$group, metadata$data, envir, "group",
+                                    allow_string_column = metadata$explicit)$value
+  group <- .as_wdstest_group(group, "group")
+  .validate_wdstest_vector_length(group, attr(dm, "Size"), "group")
+  strata <- NULL
+  if (!is.null(call$strata)) {
+    strata <- .resolve_wdstest_variable(call$strata, metadata$data, envir, "strata",
+                                       allow_string_column = metadata$explicit)$value
+    if (!is.null(strata)) {
+      strata <- .as_wdstest_vector(strata, "strata")
+      .validate_wdstest_vector_length(strata, attr(dm, "Size"), "strata")
+    }
+  }
+  adjustment <- if (!is.null(call$adjustment)) eval(call$adjustment, envir) else NULL
+  list(group = group, strata = strata,
+       adjustment = .as_wdstest_adjustment(adjustment), data = metadata$data,
+       dots = .eval_dot_exprs(dots, envir))
 }
 
 .extract_taxa_importance_inputs <- function(physeq, taxa_table, taxonomy_table,
@@ -729,18 +769,6 @@ WdS.taxa.importance <- function(dm, f, physeq = NULL, taxa_table = NULL,
   )
 }
 
-.validate_taxa_importance_formula <- function(formula) {
-  if (is.null(formula)) {
-    return(invisible(NULL))
-  }
-  # WdS.test() and a.dist() take right-hand-side formulas because the distance
-  # matrix is supplied separately as dm, not as a left-hand-side response.
-  if (!inherits(formula, "formula") || length(formula) != 2) {
-    stop("'formula' must be NULL or a right-hand side formula such as ~ Subject_ID.")
-  }
-  invisible(NULL)
-}
-
 .prepare_taxa_importance_formula_data <- function(formula, formula_data, dm) {
   if (is.null(formula)) {
     # Taxon-only scans build a tiny formula_data object inside the loop, one
@@ -748,7 +776,7 @@ WdS.taxa.importance <- function(dm, f, physeq = NULL, taxa_table = NULL,
     return(NULL)
   }
 
-  data <- .as_formula_data(formula_data)
+  data <- .as_formula_data(formula_data, arg = "data")
   if (is.environment(data)) {
     # Environments support parent-frame lookup but do not have row names, so
     # alignment by sample ID is only possible for data-frame-like inputs.
@@ -766,11 +794,11 @@ WdS.taxa.importance <- function(dm, f, physeq = NULL, taxa_table = NULL,
     # Prefer label-based alignment when possible. This protects phyloseq-style
     # sample_data objects if their rows are in a different order than dm.
     if (anyDuplicated(rownames(formula_data))) {
-      stop("Sample names in 'formula_data' must be unique.")
+      stop("Sample names in 'data' must be unique.")
     }
     missing_samples <- setdiff(dm_labels, rownames(formula_data))
     if (length(missing_samples) > 0) {
-      stop("'formula_data' is missing samples found in 'dm': ",
+      stop("'data' is missing samples found in 'dm': ",
            paste(missing_samples, collapse = ", "), ".")
     }
     formula_data <- formula_data[dm_labels, , drop = FALSE]
@@ -778,7 +806,7 @@ WdS.taxa.importance <- function(dm, f, physeq = NULL, taxa_table = NULL,
     # Without meaningful row names, fall back to positional matching but require
     # the same sample count as dm to avoid recycling or partial matching.
     if (nrow(formula_data) != dm_size) {
-      stop("'formula_data' must contain the same number of samples as 'dm'.")
+      stop("'data' must contain the same number of samples as 'dm'.")
     }
     if (!is.null(dm_labels)) {
       rownames(formula_data) <- dm_labels

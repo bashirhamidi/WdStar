@@ -6,7 +6,7 @@
 \usage{
 WdS.taxa.importance(
   dm,
-  f,
+  group,
   physeq = NULL,
   taxa_table = NULL,
   taxonomy_table = NULL,
@@ -24,15 +24,17 @@ WdS.taxa.importance(
   sort = TRUE,
   decreasing = NULL,
   verbose = FALSE,
-  formula = NULL,
-  formula_data = parent.frame(),
+  adjustment = NULL,
+  data = NULL,
   ...
 )
 }
 \arguments{
 \item{dm}{A distance matrix (any arbitrary distance or dissimilarity metric).}
 
-\item{f}{A factor variable representing the groups.}
+\item{group}{The tested grouping variable. This may be a vector/factor, an
+unquoted column name in \code{data}, or a length-one character column name
+in \code{data}.}
 
 \item{physeq}{Optional \code{phyloseq} object. When supplied,
 \code{taxa_table} is extracted with \code{phyloseq::otu_table()} and
@@ -57,12 +59,15 @@ vector such as \code{c("Genus", "Species")} for selected ranks, or
 
 \item{rank.by}{Column used for ranking. The default,
 \code{"delta.factor.goodness.of.fit"}, ranks taxa by how much the tested
-factor's pseudo-\eqn{R^2} decreases after adjusting for that taxon.}
+group's pseudo-\eqn{R^2} decreases after adjusting for that taxon.}
 
 \item{nrep}{The number of permutations to conduct for each
 \code{\link{WdS.test}} call. Default is 999.}
 
-\item{strata}{A factor variable representing strata. Default is \code{NULL}.}
+\item{strata}{(optional) A factor variable representing strata. If specified,
+the test will perform p-value computations using stratified permutation.
+This may be a vector/factor, an unquoted column name in \code{data}, or a
+length-one character column name in \code{data}. Default is \code{NULL}.}
 
 \item{distance.diagnostics}{Logical passed to \code{\link{WdS.test}}. Default
 is \code{FALSE} to keep large taxa scans compact.}
@@ -85,19 +90,23 @@ values are ranked first.}
 \item{verbose}{Logical indicating whether to show messages from the repeated
 internal \code{\link{WdS.test}} calls. Default is \code{FALSE}.}
 
-\item{formula}{Optional right-hand side formula controlling the adjustment
+\item{adjustment}{Optional right-hand side formula controlling the adjustment
 model used for each taxon. The default \code{NULL} performs a taxon-only
-adjustment, equivalent to \code{~ .wdstar_taxon}. If \code{formula} does
+adjustment, equivalent to \code{~ .wdstar_taxon}. If \code{adjustment} does
 not include \code{.wdstar_taxon}, the taxon term is added automatically.
-For example, \code{formula = ~ Subject_ID} evaluates each taxon with
-\code{~ Subject_ID + .wdstar_taxon}. If \code{formula} includes
+For example, \code{adjustment = ~ Subject_ID} evaluates each taxon with
+\code{~ Subject_ID + .wdstar_taxon}. If \code{adjustment} includes
 \code{.wdstar_taxon}, it is used as supplied, allowing formulas such as
 \code{~ .wdstar_taxon * Subject_ID}.}
 
-\item{formula_data}{Optional sample metadata used with \code{formula}. This
+\item{data}{Optional sample metadata used with \code{adjustment}. This
 may be an environment, data frame, list, or object coercible to a data
 frame, such as \code{phyloseq::sample_data()}. Row names are used to align
-data-frame-like inputs to \code{dm} labels when available.}
+data-frame-like inputs to \code{dm} labels before looking up \code{group}
+and \code{strata}. Omitted or \code{NULL} data uses the calling environment;
+metadata is not automatically extracted from \code{physeq}. External
+vectors must already follow \code{dm} order. Without meaningful row names,
+metadata rows must also follow \code{dm} order.}
 
 \item{...}{Additional arguments passed to \code{\link{WdS.test}}, such as
 \code{tol} for eigenvalue handling in \code{\link{a.dist}}.}
@@ -109,10 +118,10 @@ A \code{data.table} with one row per taxon. The \code{taxon} column
   taxon-specific formula passed to \code{\link{WdS.test}}. The
   \code{adjustment.goodness.of.fit} column is the distance-based
   pseudo-\eqn{R^2} explained by that full adjustment formula. This is taxon
-  only when \code{formula = NULL}, and taxon plus the requested sample-level
-  terms when \code{formula} is supplied. The
+  only when \code{adjustment = NULL}, and taxon plus the requested sample-level
+  terms when \code{adjustment} is supplied. The
   \code{factor.goodness.of.fit.after.adjustment} column is the tested
-  factor's semi-partial pseudo-\eqn{R^2} after adjusting for that formula.
+  group's semi-partial pseudo-\eqn{R^2} after adjusting for that formula.
   The default \code{importance} value is
   \code{factor.goodness.of.fit.unadjusted -
   factor.goodness.of.fit.after.adjustment}.
@@ -120,28 +129,28 @@ A \code{data.table} with one row per taxon. The \code{taxon} column
 \description{
 This function ranks ASVs, OTUs, or other taxa by adjusting for one taxon at a
 time in \code{\link{WdS.test}}. For each taxon, the taxon abundance vector is
-used as the adjustment formula, and the tested factor's goodness-of-fit after
-that adjustment is compared with the unadjusted factor goodness-of-fit.
+used as the adjustment formula, and the tested group's goodness-of-fit after
+that adjustment is compared with the unadjusted group goodness-of-fit.
 }
 \details{
 No abundance transformation is performed inside this function. Taxon
 abundances are used exactly as supplied; transform, normalize, or aggregate
 upstream if that is desired.
 
-The default ranking asks: how much of the tested factor's distance-based
+The default ranking asks: how much of the tested group's distance-based
 goodness-of-fit is reduced when this taxon is adjusted out? Larger
 \code{delta.factor.goodness.of.fit} values indicate taxa that account for more
-of the distance structure otherwise attributed to the tested factor. The
+of the distance structure otherwise attributed to the tested group. The
 separate \code{adjustment.goodness.of.fit} column answers a different
 question: how much total distance variation is explained by the whole
 taxon-specific adjustment formula?
 
-Use \code{formula} when each taxon should be evaluated with additional
+Use \code{adjustment} when each taxon should be evaluated with additional
 sample-level adjustment terms. For paired or repeated-measures designs,
-\code{formula = ~ Subject_ID} evaluates each taxon after adding
+\code{adjustment = ~ Subject_ID} evaluates each taxon after adding
 \code{Subject_ID} to the adjustment model. To control the exact placement of
 the taxon term, include the reserved placeholder \code{.wdstar_taxon}
-directly in \code{formula}.
+directly in \code{adjustment}.
 
 Constant taxa are retained in the output with \code{tested = FALSE} and
 missing test statistics because they cannot form a usable one-taxon
@@ -156,14 +165,14 @@ if (requireNamespace("phyloseq", quietly = TRUE)) {
   ent <- phyloseq::subset_samples(enterotype, !is.na(Enterotype))
   dm <- phyloseq::distance(ent, method = "bray")
   meta <- data.frame(phyloseq::sample_data(ent))
-  f <- factor(meta$Enterotype)
 
-  ## Rank taxa by how much the tested factor's goodness-of-fit changes after
+  ## Rank taxa by how much the tested group's goodness-of-fit changes after
   ## each taxon is adjusted out.
   taxa_rank <- WdS.taxa.importance(
     dm = dm,
-    f = f,
+    group = Enterotype,
     physeq = ent,
+    data = phyloseq::sample_data(ent),
     nrep = 9
   )
   taxa_rank[, c("taxon", "Genus", "rank", "importance", "p.value"),
@@ -172,10 +181,10 @@ if (requireNamespace("phyloseq", quietly = TRUE)) {
   ## Add a sample-level covariate to every taxon-specific adjustment model.
   taxa_rank_seqtech <- WdS.taxa.importance(
     dm = dm,
-    f = f,
+    group = Enterotype,
     physeq = ent,
-    formula = ~ SeqTech,
-    formula_data = phyloseq::sample_data(ent),
+    adjustment = ~ SeqTech,
+    data = phyloseq::sample_data(ent),
     rank.by = "adjustment.goodness.of.fit",
     nrep = 9
   )
