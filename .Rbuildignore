@@ -3,6 +3,8 @@
 ^.*\.Rproj$
 ^\.Rproj\.user$
 ^LICENSE\.md$
+^NEWS\.md$
+^README\.md$
 ^\.positai$
 ^\.posit$
 ^\.github$
@@ -12,3 +14,4 @@
 ^shinyApp$
 ^docs$
 ^\.posit/assistant$
+^\..Rcheck$
