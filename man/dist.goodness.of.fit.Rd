@@ -42,7 +42,7 @@ if (requireNamespace("phyloseq", quietly = TRUE)) {
   dm_residual <- a.dist(
     dm = dm,
     adjustment = ~ SeqTech,
-    data = phyloseq::sample_data(ent)
+    data = ent
   )
   dist.goodness.of.fit(dm, dm_residual)
 }
