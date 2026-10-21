@@ -16,19 +16,19 @@ is.dist <- function(x) any(class(x) == "dist")
 .as_formula_data <- function(data, arg = "data", dm = NULL) {
   # Whole phyloseq inputs need extraction and ID matching before coercion.
   # Other input types retain their existing ordering and lookup behavior.
-  if (inherits(data, "phyloseq")) {
+  if (inherits(data, "phyloseq")) { # if input is phyloseq object
     data <- .phyloseq_metadata(data, dm)
   }
   if (is.environment(data)) {
     return(data)
   }
 
-  data <- tryCatch(
-    data.frame(data, check.names = FALSE),
+  data <- tryCatch( # Catches conversion errors and stores the error object in data
+    data.frame(data, check.names = FALSE), # Converts the object while preserving column names exactly—including spaces or special characters.
     error = function(e) e
   )
 
-  if (inherits(data, "error")) {
+  if (inherits(data, "error")) { # If there was a conversion error
     stop(
       "'", arg, "' must be an environment, data frame, list, or coercible to a data frame.",
       call. = FALSE
@@ -39,6 +39,16 @@ is.dist <- function(x) any(class(x) == "dist")
 }
 
 # Extract only explicitly supplied phyloseq metadata, matching distance labels.
+## Return the metadata rows selected by sample ID and in distance-matrix order.
+## Extra metadata samples are excluded. drop = FALSE ensures the result remains
+## a data frame, even if it has only one column.
+### For example:
+### Input               | Sample order
+  # Distance matrix	    | S3, S1, S2
+  # Original metadata	  | S1, S2, S3, S4
+  # Returned metadata	  | S3, S1, S2
+
+## This matching prevents metadata from being assigned to the wrong samples during analysis.
 .phyloseq_metadata <- function(data, dm) {
   if (!requireNamespace("phyloseq", quietly = TRUE)) {
     stop("Package 'phyloseq' is required for phyloseq data inputs.", call. = FALSE)
@@ -51,23 +61,36 @@ is.dist <- function(x) any(class(x) == "dist")
   # Row position alone cannot establish correspondence with a separately
   # computed distance matrix, so require unambiguous IDs on both inputs.
   labels <- attr(dm, "Labels")
-  valid_ids <- function(ids) {
-    !is.null(ids) && !anyNA(ids) && all(nzchar(ids)) && !anyDuplicated(ids)
+  valid_ids <- function(ids) { # helper to check for unique, nonempty IDs
+    !is.null(ids) &&  # exists
+      !anyNA(ids) &&  # no missing
+      all(nzchar(ids)) &&  # no empty
+      !anyDuplicated(ids)  # no duplicates (are uniques)
   }
+  # Will stop if the label count differs from the number of samples in dm
   if (!valid_ids(labels) || length(labels) != attr(dm, "Size")) {
     stop("Phyloseq data requires unique, nonempty sample labels on 'dm'.", call. = FALSE)
   }
+  # Convert the phyloseq::sample_data() to standard data.frame()
   metadata <- data.frame(metadata, check.names = FALSE)
   if (!valid_ids(rownames(metadata))) {
     stop("Phyloseq metadata must have unique, nonempty sample IDs.", call. = FALSE)
   }
+  # Validate the metadata’s sample IDs, which are stored as row names.
   missing_samples <- setdiff(labels, rownames(metadata))
+  # Find IDs present in the distance matrix but absent from the metadata.
+  # If any samples are missing, stop and list their IDs.
+  # Every distance-matrix sample needs a matching metadata row.
   if (length(missing_samples)) {
     stop("Phyloseq metadata is missing samples found in 'dm': ",
          paste(missing_samples, collapse = ", "), call. = FALSE)
   }
   # The distance matrix defines the analysis sample set and order. Extra
   # metadata rows are safe to discard, but missing samples must fail above.
+
+  # Return the metadata rows selected by sample ID and in distance-matrix order.
+  # Extra metadata samples are excluded.
+  # drop = FALSE ensures the result remains a data.frame, even if it has only one column.
   metadata[labels, , drop = FALSE]
 }
 
