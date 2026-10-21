@@ -14,6 +14,8 @@
 is.dist <- function(x) any(class(x) == "dist")
 
 .as_formula_data <- function(data, arg = "data", dm = NULL) {
+  # Whole phyloseq inputs need extraction and ID matching before coercion.
+  # Other input types retain their existing ordering and lookup behavior.
   if (inherits(data, "phyloseq")) {
     data <- .phyloseq_metadata(data, dm)
   }
@@ -41,10 +43,13 @@ is.dist <- function(x) any(class(x) == "dist")
   if (!requireNamespace("phyloseq", quietly = TRUE)) {
     stop("Package 'phyloseq' is required for phyloseq data inputs.", call. = FALSE)
   }
+  # Keep phyloseq optional and report absent metadata without an accessor error.
   metadata <- phyloseq::sample_data(data, errorIfNULL = FALSE)
   if (is.null(metadata)) {
     stop("The phyloseq object has no sample metadata.", call. = FALSE)
   }
+  # Row position alone cannot establish correspondence with a separately
+  # computed distance matrix, so require unambiguous IDs on both inputs.
   labels <- attr(dm, "Labels")
   valid_ids <- function(ids) {
     !is.null(ids) && !anyNA(ids) && all(nzchar(ids)) && !anyDuplicated(ids)
@@ -61,6 +66,8 @@ is.dist <- function(x) any(class(x) == "dist")
     stop("Phyloseq metadata is missing samples found in 'dm': ",
          paste(missing_samples, collapse = ", "), call. = FALSE)
   }
+  # The distance matrix defines the analysis sample set and order. Extra
+  # metadata rows are safe to discard, but missing samples must fail above.
   metadata[labels, , drop = FALSE]
 }
 

@@ -635,6 +635,8 @@ print.wdstest <- function(x, ...) {
     return(list(data = envir, explicit = FALSE))
   }
 
+  # Extract and align whole phyloseq inputs before resolving group or strata
+  # columns; subsequent model fits then receive the same ordered metadata.
   list(data = .as_formula_data(data_value, arg = "data", dm = dm), explicit = TRUE)
 }
 
