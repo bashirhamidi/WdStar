@@ -675,3 +675,42 @@ test_that("a.dist reports and zeroes negative eigenvalues", {
   expect_s3_class(adjusted_dm, "dist")
   expect_false(any(is.nan(adjusted_dm)))
 })
+
+test_that("whole phyloseq data aligns samples for tests and adjusted distances", {
+  skip_if_not_installed("phyloseq")
+  ids <- paste0("sample", 1:8)
+  meta <- data.frame(group = factor(rep(c("A", "B"), each = 4)),
+                     covariate = c(1, 3, 2, 5, 4, 8, 6, 7), row.names = ids)
+  ps <- phyloseq::phyloseq(
+    phyloseq::otu_table(matrix(seq_len(24), nrow = 3,
+                               dimnames = list(paste0("taxon", 1:3), rev(ids))),
+                        taxa_are_rows = TRUE),
+    phyloseq::sample_data(meta[rev(ids), , drop = FALSE]))
+  dm <- dist(matrix(seq_len(14)^2, nrow = 7, dimnames = list(ids[1:7], NULL)))
+  aligned <- meta[ids[1:7], , drop = FALSE]
+  set.seed(201)
+  expected <- suppressMessages(WdS.test(dm, group = group, adjustment = ~ covariate,
+                                      data = aligned, nrep = 19))
+  set.seed(201)
+  actual <- suppressMessages(WdS.test(dm, group = group, adjustment = ~ covariate,
+                                    data = ps, nrep = 19))
+  expect_equal(actual$statistic, expected$statistic)
+  expect_equal(actual$p.value, expected$p.value)
+  expect_equal(actual$goodness.components, expected$goodness.components)
+  expect_equal(suppressMessages(a.dist(dm, adjustment = ~ covariate, data = ps)),
+               suppressMessages(a.dist(dm, adjustment = ~ covariate, data = aligned)))
+  set.seed(201)
+  quoted <- suppressMessages(WdS.test(dm, group = "group", data = ps, nrep = 19))
+  expect_s3_class(quoted, "wdstest")
+  bad <- dm
+  attr(bad, "Labels") <- NULL
+  expect_error(WdS.test(bad, group = group, data = ps), "sample labels")
+  attr(bad, "Labels") <- rep(ids[1], 7)
+  expect_error(a.dist(bad, adjustment = ~ covariate, data = ps), "sample labels")
+  attr(bad, "Labels") <- c(ids[1:6], "missing")
+  expect_error(WdS.test(bad, group = group, data = ps), "missing samples")
+  no_meta <- phyloseq::phyloseq(phyloseq::otu_table(ps),
+    phyloseq::tax_table(matrix("Bacteria", nrow = 3,
+      dimnames = list(paste0("taxon", 1:3), "Kingdom"))))
+  expect_error(WdS.test(dm, group = group, data = no_meta), "no sample metadata")
+})

@@ -13,7 +13,10 @@
 #'
 is.dist <- function(x) any(class(x) == "dist")
 
-.as_formula_data <- function(data, arg = "data") {
+.as_formula_data <- function(data, arg = "data", dm = NULL) {
+  if (inherits(data, "phyloseq")) {
+    data <- .phyloseq_metadata(data, dm)
+  }
   if (is.environment(data)) {
     return(data)
   }
@@ -31,6 +34,34 @@ is.dist <- function(x) any(class(x) == "dist")
   }
 
   data
+}
+
+# Extract only explicitly supplied phyloseq metadata, matching distance labels.
+.phyloseq_metadata <- function(data, dm) {
+  if (!requireNamespace("phyloseq", quietly = TRUE)) {
+    stop("Package 'phyloseq' is required for phyloseq data inputs.", call. = FALSE)
+  }
+  metadata <- phyloseq::sample_data(data, errorIfNULL = FALSE)
+  if (is.null(metadata)) {
+    stop("The phyloseq object has no sample metadata.", call. = FALSE)
+  }
+  labels <- attr(dm, "Labels")
+  valid_ids <- function(ids) {
+    !is.null(ids) && !anyNA(ids) && all(nzchar(ids)) && !anyDuplicated(ids)
+  }
+  if (!valid_ids(labels) || length(labels) != attr(dm, "Size")) {
+    stop("Phyloseq data requires unique, nonempty sample labels on 'dm'.", call. = FALSE)
+  }
+  metadata <- data.frame(metadata, check.names = FALSE)
+  if (!valid_ids(rownames(metadata))) {
+    stop("Phyloseq metadata must have unique, nonempty sample IDs.", call. = FALSE)
+  }
+  missing_samples <- setdiff(labels, rownames(metadata))
+  if (length(missing_samples)) {
+    stop("Phyloseq metadata is missing samples found in 'dm': ",
+         paste(missing_samples, collapse = ", "), call. = FALSE)
+  }
+  metadata[labels, , drop = FALSE]
 }
 
 .warn_deprecated_argument <- function(old, new, fn) {
@@ -96,7 +127,7 @@ dist.sigma2 <- function(dm) {
 #'   dm_residual <- a.dist(
 #'     dm = dm,
 #'     adjustment = ~ SeqTech,
-#'     data = phyloseq::sample_data(ent)
+#'     data = ent
 #'   )
 #'   dist.goodness.of.fit(dm, dm_residual)
 #' }
@@ -237,6 +268,9 @@ dist.cohen.d <- function(dm, f) {
 #'   row names in distance matrix \code{dm}, with samples in the same order.
 #'   If omitted or \code{NULL}, the calling environment is used. Formula
 #'   variables are looked up in \code{data}, then in the formula environment.
+#'   A whole \code{phyloseq} object is also accepted: sample metadata is
+#'   extracted and matched to unique, nonempty \code{dm} sample labels. Extra
+#'   metadata samples are excluded; missing samples cause an error.
 #' @param tol Tolerance for eigenvalues. This is the cutoff for the eigenvalues
 #'   to be considered zero. Default is 10^-8.
 #' @param distance.diagnostics Logical indicating whether to attach a compact
@@ -391,7 +425,7 @@ a.dist = function(dm, adjustment, data = parent.frame(), tol=10^-8,
     stop("'tol' must be a single non-negative numeric value.")
   }
 
-  data <- .as_formula_data(data, arg = "data")
+  data <- .as_formula_data(data, arg = "data", dm = dm)
   Terms <- stats::terms(formula, data = data)
   # lhs <- formula[[2]]
   # lhs <- eval(lhs, data, parent.frame())

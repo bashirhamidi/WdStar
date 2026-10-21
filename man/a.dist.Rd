@@ -25,7 +25,10 @@ It may be an environment, data frame, list, or object coercible to a data
 frame, such as \code{phyloseq::sample_data()}. Row names should match the
 row names in distance matrix \code{dm}, with samples in the same order.
 If omitted or \code{NULL}, the calling environment is used. Formula
-variables are looked up in \code{data}, then in the formula environment.}
+variables are looked up in \code{data}, then in the formula environment.
+A whole \code{phyloseq} object is also accepted: sample metadata is
+extracted and matched to unique, nonempty \code{dm} sample labels. Extra
+metadata samples are excluded; missing samples cause an error.}
 
 \item{tol}{Tolerance for eigenvalues. This is the cutoff for the eigenvalues
 to be considered zero. Default is 10^-8.}

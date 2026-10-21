@@ -42,8 +42,11 @@ to a data frame, such as \code{phyloseq::sample_data()}. Variables in
 \code{group}, \code{strata}, and \code{adjustment} are first looked up here.
 If omitted or \code{NULL}, the calling environment is used. Metadata rows
 and external vectors must follow the sample order in \code{dm}; this
-function does not reorder metadata by row names. Adjustment variables
-absent from \code{data} are looked up in the formula environment.}
+function does not reorder these inputs by row names. Adjustment variables
+absent from \code{data} are looked up in the formula environment.
+A whole \code{phyloseq} object is also accepted: sample metadata is
+extracted and matched to unique, nonempty \code{dm} sample labels. Extra
+metadata samples are excluded; missing samples cause an error.}
 
 \item{...}{Additional arguments passed to \code{\link{a.dist}()}, such as
 \code{tol} (tolerance for eigenvalues; default \code{1e-8}). These
@@ -198,7 +201,7 @@ if (requireNamespace("phyloseq", quietly = TRUE)) {
   print(WdS.test(
     dm = dm,
     group = Enterotype,
-    data = phyloseq::sample_data(ent),
+    data = ent,
     nrep = 9  # change nrep to 999 or more for a real analysis
   ))
 

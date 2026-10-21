@@ -1,5 +1,8 @@
 # WdStar 2.5.1 2026-09-09
 
+* `WdS.test()` and `a.dist()` accept whole phyloseq objects through `data`,
+  extracting sample metadata and aligning it to distance-matrix sample IDs.
+
 * Updated `WdS()` to use `group` for a directly supplied grouping factor.
   Named `f` remains a deprecated alias; positional calls still work. Metadata
   lookup stays in `WdS.test()` to keep repeated statistic calculations light.
