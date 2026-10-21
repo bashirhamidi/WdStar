@@ -1,5 +1,8 @@
 # WdStar 2.5.1 2026-09-09
 
+* `WdS.test()` and `a.dist()` accept whole phyloseq objects through `data`,
+  extracting sample metadata and aligning it to distance-matrix sample IDs.
+
 * Moved feature and taxa importance functions to the
   `feature-ranking-selection` development branch.
 

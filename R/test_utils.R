@@ -205,8 +205,11 @@ Tw2.test <- function(dm, f, nrep = 999) {
 #'   \code{group}, \code{strata}, and \code{adjustment} are first looked up here.
 #'   If omitted or \code{NULL}, the calling environment is used. Metadata rows
 #'   and external vectors must follow the sample order in \code{dm}; this
-#'   function does not reorder metadata by row names. Adjustment variables
+#'   function does not reorder these inputs by row names. Adjustment variables
 #'   absent from \code{data} are looked up in the formula environment.
+#'   A whole \code{phyloseq} object is also accepted: sample metadata is
+#'   extracted and matched to unique, nonempty \code{dm} sample labels. Extra
+#'   metadata samples are excluded; missing samples cause an error.
 #' @param goodness Which distance-based pseudo-\eqn{R^2} goodness-of-fit
 #'   component to report. Options are \code{"auto"}, \code{"group.only"},
 #'   \code{"adjustment"}, \code{"full"}, \code{"semi.partial"},
@@ -271,7 +274,7 @@ Tw2.test <- function(dm, f, nrep = 999) {
 #'   print(WdS.test(
 #'     dm = dm,
 #'     group = Enterotype,
-#'     data = phyloseq::sample_data(ent),
+#'     data = ent,
 #'     nrep = 9  # change nrep to 999 or more for a real analysis
 #'   ))
 #'
@@ -382,7 +385,7 @@ WdS.test <- function(dm, group, nrep=999, strata=NULL, adjustment=NULL, data=NUL
     data = if (!missing(data)) substitute(data),
     dots = dot_exprs,
     envir = parent,
-    dm_size = attr(dm, "Size")
+    dm_size = attr(dm, "Size"), dm = dm
   )
   group <- args$group
   strata <- args$strata
@@ -506,7 +509,7 @@ print.wdstest <- function(x, ...) {
 }
 
 .resolve_wdstest_arguments <- function(group, strata, adjustment, data, dots,
-                                       envir, dm_size) {
+                                       envir, dm_size, dm = NULL) {
   if (is.null(dots)) {
     dots <- list()
   }
@@ -552,7 +555,7 @@ print.wdstest <- function(x, ...) {
   metadata <- .resolve_wdstest_data(
     data = data,
     formula_data = if (has_legacy_data) .get_named_dot_expr(dots, "formula_data"),
-    envir = envir
+    envir = envir, dm = dm
   )
 
   # Resolve group and strata after metadata is known. That gives data columns
@@ -606,7 +609,7 @@ print.wdstest <- function(x, ...) {
   )
 }
 
-.resolve_wdstest_data <- function(data, formula_data, envir) {
+.resolve_wdstest_data <- function(data, formula_data, envir, dm = NULL) {
   has_data <- !is.null(data)
   has_formula_data <- !is.null(formula_data)
 
@@ -632,7 +635,7 @@ print.wdstest <- function(x, ...) {
     return(list(data = envir, explicit = FALSE))
   }
 
-  list(data = .as_formula_data(data_value, arg = "data"), explicit = TRUE)
+  list(data = .as_formula_data(data_value, arg = "data", dm = dm), explicit = TRUE)
 }
 
 .resolve_wdstest_variable <- function(expr, data, envir, arg,
