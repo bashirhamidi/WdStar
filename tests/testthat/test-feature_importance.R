@@ -385,3 +385,29 @@ test_that("WdS.taxa.importance validates taxa and taxonomy inputs", {
     "same number of samples"
   )
 })
+
+test_that("ranking functions accept explicit whole phyloseq metadata", {
+  skip_if_not_installed("phyloseq")
+  ids <- paste0("s", 1:8)
+  metadata <- data.frame(group = factor(rep(c("A", "B"), each = 4)),
+                         covariate = c(1, 3, 2, 5, 4, 8, 6, 7), row.names = ids)
+  ps <- phyloseq::phyloseq(
+    phyloseq::otu_table(matrix(seq_len(24), 3,
+      dimnames = list(paste0("t", 1:3), rev(ids))), taxa_are_rows = TRUE),
+    phyloseq::sample_data(metadata[rev(ids), , drop = FALSE]))
+  dm <- dist(matrix(seq_len(16)^2, 8, dimnames = list(ids, NULL)))
+  set.seed(55)
+  expected <- WdS.feature.importance(dm, group = group, adjustment = ~ covariate,
+                                     data = metadata, nrep = 9)
+  set.seed(55)
+  actual <- WdS.feature.importance(dm, group = group, adjustment = ~ covariate,
+                                   data = ps, nrep = 9)
+  expect_equal(actual, expected)
+  set.seed(55)
+  expected_taxa <- WdS.taxa.importance(dm, group = group, physeq = ps,
+    adjustment = ~ covariate, data = metadata, nrep = 9)
+  set.seed(55)
+  actual_taxa <- WdS.taxa.importance(dm, group = group, physeq = ps,
+    adjustment = ~ covariate, data = ps, nrep = 9)
+  expect_equal(actual_taxa, expected_taxa)
+})

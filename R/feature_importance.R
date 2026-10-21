@@ -14,6 +14,8 @@
 #'   \code{adjustment} and column lookup for \code{group} and \code{strata}.
 #'   Omitted or \code{NULL} data uses the calling environment. Rows and external
 #'   vectors must follow the sample order in \code{dm}.
+#'   Whole phyloseq objects may be supplied through \code{data}; metadata is
+#'   extracted and aligned to labeled \code{dm} samples.
 #' @param nrep The number of permutations to conduct for each
 #'   \code{\link{WdS.test}} call. Default is 999.
 #' @param sort Logical indicating whether to sort rows by importance. Default is
@@ -214,6 +216,8 @@ WdS.feature.importance <- function(dm, group, adjustment, data = NULL,
 #' @param rank.by Column used for ranking. The default,
 #'   \code{"delta.factor.goodness.of.fit"}, ranks taxa by how much the tested
 #'   group's pseudo-\eqn{R^2} decreases after adjusting for that taxon.
+#'   Whole phyloseq objects may be supplied through \code{data}; metadata is
+#'   extracted and aligned to labeled \code{dm} samples.
 #' @param nrep The number of permutations to conduct for each
 #'   \code{\link{WdS.test}} call. Default is 999.
 #' @param distance.diagnostics Logical passed to \code{\link{WdS.test}}. Default
@@ -560,7 +564,7 @@ WdS.taxa.importance <- function(dm, group, physeq = NULL, taxa_table = NULL,
          call. = FALSE)
   }
   if (is.null(call$group)) stop("'group' must be provided.", call. = FALSE)
-  metadata <- .resolve_wdstest_data(call$data, NULL, envir)
+  metadata <- .resolve_wdstest_data(call$data, NULL, envir, dm = dm)
   if (align_data && !is.environment(metadata$data)) {
     metadata$data <- .align_formula_data_to_dist(metadata$data, dm)
   }

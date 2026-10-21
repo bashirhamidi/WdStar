@@ -59,7 +59,9 @@ vector such as \code{c("Genus", "Species")} for selected ranks, or
 
 \item{rank.by}{Column used for ranking. The default,
 \code{"delta.factor.goodness.of.fit"}, ranks taxa by how much the tested
-group's pseudo-\eqn{R^2} decreases after adjusting for that taxon.}
+group's pseudo-\eqn{R^2} decreases after adjusting for that taxon.
+Whole phyloseq objects may be supplied through \code{data}; metadata is
+extracted and aligned to labeled \code{dm} samples.}
 
 \item{nrep}{The number of permutations to conduct for each
 \code{\link{WdS.test}} call. Default is 999.}

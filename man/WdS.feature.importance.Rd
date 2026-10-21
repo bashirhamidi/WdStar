@@ -30,7 +30,9 @@ features to evaluate.}
 data frame, such as \code{phyloseq::sample_data()}, to be used with
 \code{adjustment} and column lookup for \code{group} and \code{strata}.
 Omitted or \code{NULL} data uses the calling environment. Rows and external
-vectors must follow the sample order in \code{dm}.}
+vectors must follow the sample order in \code{dm}.
+Whole phyloseq objects may be supplied through \code{data}; metadata is
+extracted and aligned to labeled \code{dm} samples.}
 
 \item{nrep}{The number of permutations to conduct for each
 \code{\link{WdS.test}} call. Default is 999.}
