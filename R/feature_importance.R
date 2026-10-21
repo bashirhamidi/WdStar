@@ -564,6 +564,8 @@ WdS.taxa.importance <- function(dm, group, physeq = NULL, taxa_table = NULL,
          call. = FALSE)
   }
   if (is.null(call$group)) stop("'group' must be provided.", call. = FALSE)
+  # Share core metadata extraction so whole phyloseq inputs are aligned before
+  # column lookup. Metadata is used only when explicitly supplied through data.
   metadata <- .resolve_wdstest_data(call$data, NULL, envir, dm = dm)
   if (align_data && !is.environment(metadata$data)) {
     metadata$data <- .align_formula_data_to_dist(metadata$data, dm)
