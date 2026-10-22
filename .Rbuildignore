@@ -1,17 +1,33 @@
+# ^LICENSE\.md$ ## Commented out
+# ^NEWS\.md$
+# ^README\.md$
+
+^\.\.Rcheck$
+^\.*\.Rcheck$
+^.*\.Rcheck$
+
+^.RData$
 ^renv$
 ^renv\.lock$
+^.Rhistory$
 ^.*\.Rproj$
 ^\.Rproj\.user$
-^LICENSE\.md$
-^NEWS\.md$
-^README\.md$
+^\.Ruserdata$
+
+
 ^\.positai$
 ^\.posit$
 ^\.github$
+^\.gitattributes$
+^\.gitignore$
+
 ^\.DS_Store$
+(^|/)\.DS_Store$
 ^tests/\.DS_Store$
+
 ^publications$
 ^shinyApp$
 ^docs$
-^\.posit/assistant$
-^\..Rcheck$
+
+^WdStar*\.tar\.gz$
+^WdStar_*\.tar\.gz$
