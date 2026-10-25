@@ -345,8 +345,8 @@ test_that("WdS.test reports auto goodness of fit for adjusted and unadjusted tes
     adjustment = ~ adjustment
   ))
 
-  expect_named(unadjusted_result$estimate, "effect size estimator of variance, omega-squared (\u03C9\u00B2)")
-  expect_named(adjusted_result$estimate, "effect size estimator of variance, omega-squared (\u03C9\u00B2)")
+  expect_named(unadjusted_result$estimate, "effect size, omega-squared (\u03C9\u00B2)")
+  expect_named(adjusted_result$estimate, "effect size, omega-squared (\u03C9\u00B2)")
   expect_named(unadjusted_result$goodness.of.fit, "pseudo-R\u00B2 for group only")
   expect_named(adjusted_result$goodness.of.fit, "semi-partial pseudo-R\u00B2 for group given adjustment")
   expect_equal(unname(unadjusted_result$goodness.of.fit), unname(expected_factor_r_squared))
@@ -518,7 +518,7 @@ test_that("estimate labels fall back safely for non-UTF-8 HTML output", {
     WdStar:::.format_estimate_name(
       names(x$estimate), utf8 = FALSE, html = TRUE, latex = FALSE
     ),
-    "effect size estimator of variance, omega-squared (omega^2)"
+    "effect size, omega-squared (omega^2)"
   )
   expect_equal(
     WdStar:::.format_estimate_name(
@@ -530,7 +530,7 @@ test_that("estimate labels fall back safely for non-UTF-8 HTML output", {
     WdStar:::.format_estimate_name(
       names(x$estimate), utf8 = TRUE, html = FALSE, latex = TRUE
     ),
-    "effect size estimator of variance, omega-squared (omega^2)"
+    "effect size, omega-squared (omega^2)"
   )
 })
 

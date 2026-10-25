@@ -301,6 +301,7 @@ dist.cohen.d <- function(dm, f) {
 #'   A whole \code{phyloseq} object is also accepted: sample metadata is
 #'   extracted and matched to unique, nonempty \code{dm} sample labels. Extra
 #'   metadata samples are excluded; missing samples cause an error.
+#'   Adjustment variables must have one value per sample and no missing values.
 #' @param tol Tolerance for eigenvalues. This is the cutoff for the eigenvalues
 #'   to be considered zero. Default is 10^-8.
 #' @param distance.diagnostics Logical indicating whether to attach a compact
@@ -451,7 +452,7 @@ a.dist = function(dm, adjustment, data = parent.frame(), tol=10^-8,
   formula <- .as_wdstest_adjustment(adjustment)
   if (is.null(data)) data <- caller
   .validate_distance_diagnostic_options(distance.diagnostics, keep.eigenvalues)
-  if (!is.numeric(tol) || length(tol) != 1 || is.na(tol) || tol < 0) {
+  if (!is.numeric(tol) || length(tol) != 1 || !is.finite(tol) || tol < 0) {
     stop("'tol' must be a single non-negative numeric value.")
   }
 
@@ -461,15 +462,27 @@ a.dist = function(dm, adjustment, data = parent.frame(), tol=10^-8,
   # lhs <- eval(lhs, data, parent.frame())
   # formula[[2]] <- NULL
   lhs <- dm
-  rhs.frame <- stats::model.frame(formula, data, drop.unused.levels = TRUE) ## extract data.frame from a formula
+  rhs.frame <- stats::model.frame(formula, data, drop.unused.levels = TRUE,
+                                  na.action = stats::na.fail) ## extract data.frame from a formula
+  # Stop when adjustment values are missing
+  ## Check that the number of rows in the right-hand-side data frame matches the
+  ## number of samples in the distance matrix. This ensures that each sample has
+  ## a corresponding row in the adjustment metadata.
+  if (nrow(rhs.frame) != attr(dm, "Size")) {
+    stop("Adjustment metadata must have one row per distance-matrix sample.", call. = FALSE)
+  }
   rhs <- stats::model.matrix(formula, rhs.frame) ## expand and create dummy variables for the terms
   grps <- attr(rhs, "assign") ## tells which column from the data set each dummy variable came from
   qrhs <- qr(rhs) ##computes the QR decomposition of rhs matrix
   rhs <- rhs[, qrhs$pivot, drop = FALSE]
-  rhs <- rhs[, 1:qrhs$rank, drop = FALSE]
-  grps <- grps[qrhs$pivot][1:qrhs$rank]
+  rhs <- rhs[, seq_len(qrhs$rank), drop = FALSE] # 1:qrhs$rank fails for rank zero
+  grps <- grps[qrhs$pivot][seq_len(qrhs$rank)] #same as above, seq_length() is more robust
   u.grps <- unique(grps)
-  nterms <- length(u.grps) - 1
+  nterms <- length(setdiff(u.grps, 0L)) # previously length(u.grps) -1 assumed
+  # that an intercept was present. This removes the intercept identifier (0) from
+  # the count of usable terms, which is more robust to formulas with no intercept.
+  # This allows formulas like ~ SeqTech - 1 to be valid, resulting in a 1 where
+  # previoulsy it would have been 0.
   if (nterms < 1)
     stop("right-hand-side of formula has no usable terms")
   dmat <- as.matrix(lhs^2) #still has the labels of lhs
