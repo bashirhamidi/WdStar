@@ -1,3 +1,18 @@
+# WdStar 2.5.2
+
+* Print omega-squared on one line for consistency.
+* Distinguish stratified and adjusted tests in the method heading.
+* Fixed a bug that caused issues with singleton strata. Now we validate 
+  permutation counts and strata; and we preserve singleton numeric strata
+  when generating restricted permutations.
+* Reject missing or mismatched adjustment metadata explicitly and support
+  single-term adjustment formulas without an intercept.
+* Refresh examples for clarity, 
+* Updated the automated checks to include checks for new changes, including 
+  outputs of omega-squared, sample estimates, and pseudo-R^2.
+* Updated package-build and git ignore file exclusions in preparation for 
+  CRAN submission. 
+
 # WdStar 2.5.1 2026-09-09
 
 * `WdS.test()` and `a.dist()` accept whole phyloseq objects through `data`,

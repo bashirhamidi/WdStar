@@ -28,7 +28,8 @@ If omitted or \code{NULL}, the calling environment is used. Formula
 variables are looked up in \code{data}, then in the formula environment.
 A whole \code{phyloseq} object is also accepted: sample metadata is
 extracted and matched to unique, nonempty \code{dm} sample labels. Extra
-metadata samples are excluded; missing samples cause an error.}
+metadata samples are excluded; missing samples cause an error.
+Adjustment variables must have one value per sample and no missing values.}
 
 \item{tol}{Tolerance for eigenvalues. This is the cutoff for the eigenvalues
 to be considered zero. Default is 10^-8.}

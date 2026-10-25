@@ -20,10 +20,12 @@ returns the observed test statistic.}
 
 \item{f}{A factor variable representing the groups.}
 
-\item{nrep}{The number of permutations to conduct. Default is 999.}
+\item{nrep}{A single non-negative integer giving the number of permutations
+to conduct. Default is 999.}
 
 \item{strata}{A factor variable representing permutation strata. If supplied,
-permutations are restricted within strata. Default is \code{NULL}.}
+permutations are restricted within strata. Supply one non-missing value
+per observation. Singleton strata remain fixed. Default is \code{NULL}.}
 }
 \value{
 A list containing:

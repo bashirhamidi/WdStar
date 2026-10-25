@@ -9,9 +9,11 @@
 #'   returns the observed test statistic.
 #' @param dm A distance matrix (any arbitrary distance or dissimilarity metric).
 #' @param f A factor variable representing the groups.
-#' @param nrep The number of permutations to conduct. Default is 999.
+#' @param nrep A single non-negative integer giving the number of permutations
+#'   to conduct. Default is 999.
 #' @param strata A factor variable representing permutation strata. If supplied,
-#'   permutations are restricted within strata. Default is \code{NULL}.
+#'   permutations are restricted within strata. Supply one non-missing value
+#'   per observation. Singleton strata remain fixed. Default is \code{NULL}.
 #'
 #' @return A list containing:
 #' \itemize{
@@ -36,18 +38,44 @@
 #'   generic.distance.permutation.test(WdS, dm = dm, f = f, nrep = 9)
 #' }
 generic.distance.permutation.test =
-  function(test.statistic, dm, f, nrep=999, strata = NULL){
-    N = length(f)
-    generate.permutation=function(){
-      f[sample(N)]
+  function(test.statistic, dm, f, nrep = 999, strata = NULL){
+    N <- length(f)
+    # Check that the number of permutations is a single non-negative integer.
+    if (!is.numeric(nrep) || length(nrep) != 1L || !is.finite(nrep) ||
+        nrep < 0 || nrep != floor(nrep)) {
+      stop("'nrep' must be a single non-negative integer.", call. = FALSE)
     }
-
-    if(!is.null(strata)){
+    # Reject missing group labels because they cannot be permuted. Users need to
+    # subset the distance matrix to exclude missing labels before calling this
+    # function.
+    if (anyNA(f)) stop("'f' must not contain missing values.", call. = FALSE)
+    generate.permutation <- function() f[sample(N)]
+    # Restricted permutations require one non-missing stratum per observation.
+    if (!is.null(strata)) {
+      if (length(strata) != N || anyNA(strata)) {
+        stop("'strata' must have one non-missing value per observation.", call. = FALSE)
+      }
       # map elements of each strata back to their positions in the factor variable
-      strata.map = order(unlist(tapply(seq_along(f), strata, identity)))
-      generate.permutation=function(){
-        p = unlist(tapply(f,strata,sample)) # permute within strata
-        p[strata.map]
+      # tapply() groups its output by stratum. Map the concatenated results
+      # back to the original observation order after shuffling within strata.
+      # using seq_len(N) instead of seq_along(f) since we already pulled the
+      # length of f into N.
+      strata.map <- order(unlist(tapply(seq_len(N), strata, identity)))
+      generate.permutation <- function() {
+        # Shuffle observation indices rather than labels. This avoids both
+        # sample()'s numeric-singleton special case and factor coercion when
+        # tapply()/unlist() combine their results.
+        p <- unlist(tapply(seq_len(N), strata, # splits those positions into strata
+                           # sample))
+        # This implementation passed each stratum's labels to sample(). This worked
+        # except for singleton numeric labels caused issue, for example,
+        # sample(5) shuffled 1:5 instead of returning only 5.
+                           function(idx) { #Receive position belonging to one strata
+          idx[sample.int(length(idx))] # Generates a random ordering within that stratum
+        # and idx[] returns that stratum's shuffled observation position
+        }), use.names = FALSE) # Prevents unlist() from adding stratum-generated names
+        f[p[strata.map]] #  Restores the original observation order after shuffling within strata
+        # f[] returns the group labels at the shuffled positions
       }
     }
 
@@ -103,10 +131,11 @@ Tw2.test <- function(dm, f, nrep = 999) {
 #' This function performs the \eqn{\mathnormal{W}_d^*} test statistic for
 #' k-group comparison using a given distance matrix.
 #'
-#' This method uses permutation testing to establish the significance by computing
-#' \eqn{\mathnormal{W}_d^*} statistic on \eqn{\mathnormal{m}} permutations of the original data
-#' and estimate the significance as the fraction of times the permuted statistic
-#' is greater than or equal to \eqn{\mathnormal{W}_d}.
+#' This method uses permutation testing to establish the significance by
+#' computing \eqn{\mathnormal{W}_d^*} statistic on \eqn{\mathnormal{m}}
+#' permutations of the original data and estimate the significance as the
+#' fraction of times the permuted statistic is greater than or equal to
+#' \eqn{\mathnormal{W}_d}.
 #'
 #' Our approach can accommodate multi-level factors, stratification (via
 #' restricted permutations), multiple post-hoc testing scenarios, and covariate
@@ -114,11 +143,11 @@ Tw2.test <- function(dm, f, nrep = 999) {
 #'
 #' The preferred interface is \code{group} for the tested grouping variable,
 #' \code{adjustment} for optional covariates to remove, and \code{data} for
-#' sample metadata. For example, \code{group = Enterotype} and
-#' \code{adjustment = ~ Age + SeqTech} test Enterotype after removing variation
-#' associated with Age and sequencing technology. The \code{adjustment} formula
-#' is passed to \code{\link{a.dist}} to project residual matrices before the
-#' test is performed. Users may also make adjustments outside the function with
+#' sample metadata. For example, \code{group = Enterotype} and \code{adjustment
+#' = ~ Age + SeqTech} test Enterotype after removing variation associated with
+#' Age and sequencing technology. The \code{adjustment} formula is passed to
+#' \code{\link{a.dist}} to project residual matrices before the test is
+#' performed. Users may also make adjustments outside the function with
 #' \code{\link{a.dist}} and then pass the adjusted distance matrix to
 #' \code{WdS.test()}.
 #'
@@ -153,19 +182,18 @@ Tw2.test <- function(dm, f, nrep = 999) {
 #' diagnosis; the default keeps only the compact summary.
 #'
 #' The diagnostic rows correspond to residual distance matrices actually
-#' constructed by the call. For example, an adjusted test with
-#' \code{goodness = "auto"} stores rows for \code{"adjustment"} and
-#' \code{"full"}; \code{"group.only"} is added only when requested, such as
-#' with \code{goodness = "all"}. An unadjusted test with the default
-#' \code{goodness = "auto"} stores a \code{"group.only"} row. If
-#' \code{goodness = "none"} and no adjustment formula is supplied, no residual
-#' distance matrix is constructed and \code{distance.diagnostics} is
-#' \code{NULL}, unless the input \code{dm} already carries diagnostics from a
-#' previous \code{a.dist()} call. In that case, the input diagnostics are
-#' preserved with role \code{"input"}.
+#' constructed by the call. For example, an adjusted test with \code{goodness =
+#' "auto"} stores rows for \code{"adjustment"} and \code{"full"};
+#' \code{"group.only"} is added only when requested, such as with \code{goodness
+#' = "all"}. An unadjusted test with the default \code{goodness = "auto"} stores
+#' a \code{"group.only"} row. If \code{goodness = "none"} and no adjustment
+#' formula is supplied, no residual distance matrix is constructed and
+#' \code{distance.diagnostics} is \code{NULL}, unless the input \code{dm}
+#' already carries diagnostics from a previous \code{a.dist()} call. In that
+#' case, the input diagnostics are preserved with role \code{"input"}.
 #'
-#' For adjustment variables \eqn{Z} and tested group \eqn{G}, the components
-#' are interpreted as follows:
+#' For adjustment variables \eqn{Z} and tested group \eqn{G}, the components are
+#' interpreted as follows:
 #' \itemize{
 #'   \item \code{group.only}: \eqn{R^2_G}, variation explained by \eqn{G}
 #'   alone, ignoring adjustment variables.
@@ -178,13 +206,13 @@ Tw2.test <- function(dm, f, nrep = 999) {
 #'   \item \code{partial}: \eqn{(R^2_{Z+G} - R^2_Z)/(1 - R^2_Z)}, the fraction
 #'   of adjustment-residual variation explained by \eqn{G}.
 #' }
-#' The full-model residual matrix is computed from the original \code{dm} with
-#' a combined formula. It is not computed by applying \code{a.dist()} a second
-#' time to an already residualized distance matrix.
-#' When no adjustment formula is supplied, \code{adjustment} is unavailable; if
-#' requested, \code{full}, \code{semi.partial}, and \code{partial} reduce to the
-#' same value as \code{group.only}. Use \code{goodness = "none"} to skip these
-#' additional goodness-of-fit calculations.
+#' The full-model residual matrix is computed from the original \code{dm} with a
+#' combined formula. It is not computed by applying \code{a.dist()} a second
+#' time to an already residualized distance matrix. When no adjustment formula
+#' is supplied, \code{adjustment} is unavailable; if requested, \code{full},
+#' \code{semi.partial}, and \code{partial} reduce to the same value as
+#' \code{group.only}. Use \code{goodness = "none"} to skip these additional
+#' goodness-of-fit calculations.
 #'
 #' @param dm A distance matrix (any arbitrary distance or dissimilarity metric).
 #' @param group The tested grouping variable. This may be a vector/factor, an
@@ -196,20 +224,20 @@ Tw2.test <- function(dm, f, nrep = 999) {
 #'   This may be a vector/factor, an unquoted column name in \code{data}, or a
 #'   length-one character column name in \code{data}. Default is \code{NULL}.
 #' @param adjustment (optional) A right-hand-side formula specifying covariates
-#'   to remove from \code{dm} before testing \code{group}. For example,
-#'   \code{~ SeqTech}, \code{~ Age + SeqTech}, or \code{~ Age * SeqTech}. Note
-#'   that you may use any data type supported by \code{model.matrix()}, including
-#'   factor, character, integer, and numeric variables. Default is \code{NULL}.
+#'   to remove from \code{dm} before testing \code{group}. For example, \code{~
+#'   SeqTech}, \code{~ Age + SeqTech}, or \code{~ Age * SeqTech}. Note that you
+#'   may use any data type supported by \code{model.matrix()}, including factor,
+#'   character, integer, and numeric variables. Default is \code{NULL}.
 #' @param data (optional) An environment, data frame, list, or object coercible
 #'   to a data frame, such as \code{phyloseq::sample_data()}. Variables in
-#'   \code{group}, \code{strata}, and \code{adjustment} are first looked up here.
-#'   If omitted or \code{NULL}, the calling environment is used. Metadata rows
-#'   and external vectors must follow the sample order in \code{dm}; this
+#'   \code{group}, \code{strata}, and \code{adjustment} are first looked up
+#'   here. If omitted or \code{NULL}, the calling environment is used. Metadata
+#'   rows and external vectors must follow the sample order in \code{dm}; this
 #'   function does not reorder these inputs by row names. Adjustment variables
-#'   absent from \code{data} are looked up in the formula environment.
-#'   A whole \code{phyloseq} object is also accepted: sample metadata is
-#'   extracted and matched to unique, nonempty \code{dm} sample labels. Extra
-#'   metadata samples are excluded; missing samples cause an error.
+#'   absent from \code{data} are looked up in the formula environment. A whole
+#'   \code{phyloseq} object is also accepted: sample metadata is extracted and
+#'   matched to unique, nonempty \code{dm} sample labels. Extra metadata samples
+#'   are excluded; missing samples cause an error.
 #' @param goodness Which distance-based pseudo-\eqn{R^2} goodness-of-fit
 #'   component to report. Options are \code{"auto"}, \code{"group.only"},
 #'   \code{"adjustment"}, \code{"full"}, \code{"semi.partial"},
@@ -217,11 +245,14 @@ Tw2.test <- function(dm, f, nrep = 999) {
 #'   \code{"auto"} reports \code{"group.only"} for unadjusted tests and
 #'   \code{"semi.partial"} for adjusted tests. Multiple explicit components may
 #'   be requested with a character vector, except for \code{"auto"},
-#'   \code{"all"}, and \code{"none"}. Use \code{"none"} to skip
-#'   goodness-of-fit calculations.
+#'   \code{"all"}, and \code{"none"}. Use \code{"none"} to skip goodness-of-fit
+#'   calculations.
 #' @param distance.diagnostics Logical indicating whether to store compact
 #'   eigendecomposition diagnostics for residual distance matrices constructed
-#'   inside \code{WdS.test()}. Default is \code{TRUE}.
+#'   inside \code{WdS.test()}. Default is \code{TRUE}. \code{goodness} and
+#'   \code{distance.diagnostics} are placed after \code{...} so older calls that
+#'   pass \code{a.dist()} arguments through \code{...} keep their positional
+#'   behavior; users should pass these newer controls by name.
 #' @param keep.eigenvalues Logical indicating whether to include raw eigenvalue
 #'   vectors in \code{distance.diagnostics}. Default is \code{FALSE} to avoid
 #'   extra memory use in large analyses and simulations.
@@ -229,10 +260,10 @@ Tw2.test <- function(dm, f, nrep = 999) {
 #'   \code{tol} (tolerance for eigenvalues; default \code{1e-8}). These
 #'   arguments are used when residual distance matrices are computed for
 #'   adjustment or goodness-of-fit components. Deprecated named arguments
-#'   \code{f}, \code{formula}, and \code{formula_data} are also accepted here for
-#'   backward compatibility. Unexpected arguments are rejected even when
-#'   \code{goodness = "none"}; a single unnamed extra argument is treated
-#'   as \code{tol} for positional compatibility.
+#'   \code{f}, \code{formula}, and \code{formula_data} are also accepted here
+#'   for backward compatibility. Unexpected arguments are rejected even when
+#'   \code{goodness = "none"}; a single unnamed extra argument is treated as
+#'   \code{tol} for positional compatibility.
 #' @return A list containing:
 #' \itemize{
 #'   \item \code{method}: name of the method used.
@@ -257,114 +288,121 @@ Tw2.test <- function(dm, f, nrep = 999) {
 #'          }
 #' }
 #'
-#' @seealso \code{\link{generic.distance.permutation.test}}, \code{\link{Tw2.test}},
-#'          \code{\link{a.dist}}, \code{\link{dist.goodness.of.fit}}
+#' @seealso \code{\link{generic.distance.permutation.test}},
+#'   \code{\link{Tw2.test}}, \code{\link{a.dist}},
+#'   \code{\link{dist.goodness.of.fit}}
 #' @importFrom stats terms
 #' @export
 #' @examples
-#' # phyloseq is optional; examples run when it is already installed.
+#' # We use the optional package phyloseq in these examples for their enterotype dataset;
+#' # Examples run when phyloseq is already installed.
 #' if (requireNamespace("phyloseq", quietly = TRUE)) {
-#'   data("enterotype", package = "phyloseq") # load enterotype data
-#'
+#'   data("enterotype", package = "phyloseq") # load phyloseq's enterotype data
 #'   ## Use the full enterotype data after removing samples without Enterotype.
 #'   ent <- phyloseq::subset_samples(enterotype, !is.na(Enterotype))
 #'   dm <- phyloseq::distance(ent, method = "bray")
+#'   ###########################################################
+#'   ###########################################################
+#'   ## (Eg 1) Basic multivariate test:
+#'   res_unadjusted <-
+#'     WdS.test(
+#'       dm = dm,
+#'       group = Enterotype,
+#'       data = ent, # Can directly use phyloseq object or phyloseq::sample_data(ent)
+#'       nrep = 9) # Change nrep to 999 or more for a real analysis
+#'   ### Data parameter can be given as a data frame, list, or phyloseq object.
 #'
-#'   ## Basic multivariate test:
-#'   print(WdS.test(
+#'   ### Goodness of Fit:
+#'   #### By default, the unadjusted test's goodness.of.fit reports the
+#'   #### distance-based pseudo-R-squared for the tested group.
+#'   #### goodness.of.fit contains the selected values;
+#'   #### goodness.components contains all components calculated for this test.
+#'   res_unadjusted$goodness.components
+#'
+#'   ### use goodness = "all" to request all available goodness-of-fit components.
+#'   ### Use goodness = "none" to skip goodness-of-fit calculations.
+#'   WdS.test(
 #'     dm = dm,
 #'     group = Enterotype,
-#'     data = ent,
-#'     nrep = 9  # change nrep to 999 or more for a real analysis
-#'   ))
-#'
-#'   ## By default, the unadjusted test's goodness.of.fit reports the
-#'   ## distance-based pseudo-R-squared for the tested group.
-#'   print(unadjusted_res <- WdS.test(
-#'     dm = dm,
-#'     group = "Enterotype",
 #'     data = phyloseq::sample_data(ent),
-#'     nrep = 9
-#'   ))
-#'   ## goodness.of.fit contains the selected values; goodness.components
-#'   ## contains all components calculated for this test.
-#'   # print(unadjusted_res$goodness.components)
+#'     goodness = "none", # goodness = "all",
+#'     nrep = 9)
+#'   ###########################################################
+#'   ###########################################################
+#'   ## (Eg 2) Stratified permutation example:
+#'   ### This restricts permutations within sequencing technology.
+#'   ### Stratification does not change statistics, estimate, or goodness-of-fit.
+#'   res_stratified <-
+#'     WdS.test(
+#'       dm = dm,
+#'       group = Enterotype,
+#'       strata = SeqTech,
+#'       data = phyloseq::sample_data(ent),
+#'       nrep = 9)
 #'
-#'   ## Use goodness = "none" to skip goodness-of-fit calculations.
-#'   # WdS.test(
-#'   #  dm = dm,
-#'   #  group = Enterotype,
-#'   #  data = phyloseq::sample_data(ent),
-#'   #  goodness = "none",
-#'   #  nrep = 9
-#'   #)
+#'   ###########################################################
+#'   ###########################################################
+#'   ## (Eg 3) Covariate adjustment by a categorical covariate (sequencing technology):
+#'   res_adj_categorical <-
+#'     WdS.test(
+#'       dm = dm,
+#'       group = Enterotype,
+#'       adjustment = ~SeqTech,
+#'       data = phyloseq::sample_data(ent),
+#'       nrep = 9)
 #'
-#'   ## Stratified permutation example. This restricts permutations within
-#'   ## sequencing technology. Stratification does not change statistics,
-#'   ## estimate, or goodness-of-fit.
-#'   print(WdS.test(
-#'     dm = dm,
-#'     group = Enterotype,
-#'     strata = SeqTech,
-#'     data = phyloseq::sample_data(ent),
-#'     nrep = 9
-#'   ))
+#'   ### Get distance diagnostics
+#'   res_adj_categorical$distance.diagnostics
 #'
-#'   ## Covariate adjustment by sequencing technology, a categorical covariate.
-#'   print(res <- WdS.test(
-#'     dm = dm,
-#'     group = Enterotype,
-#'     adjustment = ~ SeqTech,
-#'     data = phyloseq::sample_data(ent),
-#'     nrep = 9
-#'   ))
-#'   # res$goodness.components
-#'   # res$distance.diagnostics
+#'   ###########################################################
+#'   ###########################################################
+#'   ## (Eg 4) Covariate adjustment by a continuous covariate (age):
+#'   ### In the enterotype dataset, age has many missing values so this example
+#'   ### builds a matching age-complete distance matrix before using Age in the
+#'   ### adjustment formula.
+#'   ent_age <-
+#'     phyloseq::subset_samples(
+#'       enterotype,
+#'       !is.na(Enterotype) & !is.na(Age)
+#'     )
+#'   dm_age <- phyloseq::distance(ent_age, method = "bray")
+#'   res_adj_continuous <-
+#'     WdS.test(
+#'       dm = dm_age,
+#'       group = Enterotype,
+#'       adjustment = ~Age,
+#'       data = phyloseq::sample_data(ent_age),
+#'       nrep = 9)
 #'
-#'   ## Request all available goodness-of-fit components.
-#'   # WdS.test(
-#'   #  dm = dm,
-#'   #  group = Enterotype,
-#'   #  adjustment = ~ SeqTech,
-#'   #  data = phyloseq::sample_data(ent),
-#'   #  goodness = "all",
-#'   #  nrep = 9
-#'   # )
+#'   ###########################################################
+#'   ###########################################################
+#'   ## (Eg 5) Covariate adjustment by building distance matrix outside the
+#'   ## function, then pass dm to WdS.test():
+#'   ### First build adjusted dm
+#'   a.dm <-
+#'     a.dist(
+#'       dm = dm,
+#'       adjustment = ~SeqTech,
+#'       data = phyloseq::sample_data(ent))
+#'   ### Then use adjusted dm in testing
+#'   res_eg5 <-
+#'     WdS.test(
+#'       dm = a.dm,
+#'       group = Enterotype,
+#'       data = phyloseq::sample_data(ent),
+#'       nrep = 9)
+#'   ### You can get the diagnostics of adjusted dm
+#'   # attr(a.dm, "distance.diagnostics")
 #'
-#'   ## Continuous covariates can also be used. Age has many missing values in
-#'   ## enterotype, so this example builds a matching Age-complete distance
-#'   ## matrix before using Age in the adjustment formula.
-#'   # ent_age <- phyloseq::subset_samples(enterotype,
-#'   #  !is.na(Enterotype) & !is.na(Age)
-#'   #)
-#'   # dm_age <- phyloseq::distance(ent_age, method = "bray")
-#'   # WdS.test(
-#'   #  dm = dm_age,
-#'   #  group = Enterotype,
-#'   #  adjustment = ~ Age,
-#'   #  data = phyloseq::sample_data(ent_age),
-#'   #  nrep = 9
-#'   #)
-#'
-#'   ## Adjustment example 2: create the adjusted distance matrix outside the
-#'   ## function, then pass it to WdS.test().
-#'   # a.dm <- a.dist(
-#'   #  dm = dm,
-#'   #  adjustment = ~ SeqTech,
-#'   #  data = phyloseq::sample_data(ent)
-#'   #)
-#'   # WdS.test(
-#'   #  dm = a.dm,
-#'   #  group = Enterotype,
-#'   #  data = phyloseq::sample_data(ent),
-#'   #  nrep = 9
-#'   #)
-#'   #attr(a.dm, "distance.diagnostics")
+#'   print(res_unadjusted)
+#'   print(res_stratified)
+#'   print(res_adj_categorical)
+#'   print(res_adj_continuous)
 #' }
 #'
-# goodness and diagnostic controls are placed after ... so older calls that pass
-# a.dist() arguments through ... keep their positional behavior; users should
-# pass these newer controls by name.
+#' # goodness and diagnostic controls are placed after ... so older calls that pass
+#' # a.dist() arguments through ... keep their positional behavior; users should
+#' # pass these newer controls by name.
 WdS.test <- function(dm, group, nrep=999, strata=NULL, adjustment=NULL, data=NULL, ...,
                      goodness="auto", distance.diagnostics = TRUE,
                      keep.eigenvalues = FALSE){
@@ -415,17 +453,23 @@ WdS.test <- function(dm, group, nrep=999, strata=NULL, adjustment=NULL, data=NUL
   test.results <- generic.distance.permutation.test(WdS, dm=dm, f=group, nrep=nrep, strata=strata)
 
     # Name of the hypothesis test
-  if(!is.null(adjustment)) {
-    method <- "Adjusted Distance-based Multivariate Welch ANOVA"
+  if((!is.null(adjustment) && !is.null(strata))) {
+    method <- "Stratified-Adjusted Distance-based Multivariate Welch ANOVA"
     adjustment_formula <- paste(deparse(adjustment), collapse = "")
-    } else {
-    method <- "Distance-based Multivariate Welch ANOVA"
-    adjustment_formula <- NULL
-    }
+    } else if(!is.null(adjustment)) {
+      method <- "Adjusted Distance-based Multivariate Welch ANOVA"
+      adjustment_formula <- paste(deparse(adjustment), collapse = "")
+      } else if(!is.null(strata)) {
+        method <- "Stratified Distance-based Multivariate Welch ANOVA"
+        adjustment_formula <- NULL
+        } else {
+          method <- "Distance-based Multivariate Welch ANOVA"
+          adjustment_formula <- NULL
+          }
 
   # Strata information
   if(!is.null(strata)){
-    strata_selected <- "\n\tP-value is based on stratified permutations. WdS statistic and \u03C9\u00B2 are not computed by strata."}
+    strata_selected <- "\n\tStratification affects only the p-value (not WdS statistic, \u03C9\u00B2, and R\u00B2)."}
     else {strata_selected <- NULL}
 
   # Description of the data
@@ -444,7 +488,7 @@ WdS.test <- function(dm, group, nrep=999, strata=NULL, adjustment=NULL, data=NUL
 
   # Effect size estimator of variance, omega-squared
   estimate <- (((length(levels(group))-1)*(unname(statistic)-1))/((length(levels(group))-1)*(unname(statistic) - 1) + attr(dm, "Size")))
-  attr(estimate, "names") <- "effect size estimator of variance, omega-squared (\u03C9\u00B2)"
+  attr(estimate, "names") <- "effect size, omega-squared (\u03C9\u00B2)"
 
   # Build the requested pseudo-R2 output after the WdS statistic is computed.
   # For adjusted tests, dm is now the adjustment-residual distance matrix.
@@ -486,22 +530,39 @@ WdS.test <- function(dm, group, nrep=999, strata=NULL, adjustment=NULL, data=NUL
 
 #' @export
 print.wdstest <- function(x, ...) {
-  estimate_name <- .format_estimate_name(names(x$estimate))
+  # Standard htest prints estimate name and computed result in different lines.
+  # Print the label and value together while preserving the stored result.
+  # Print the standard htest output without its sample-estimates block.
+  # Modify a separate copy so the returned object retains its estimate.
+  display <- x
+  display$estimate <- NULL
+  print_htest <- utils::getS3method("print", "htest")
+  print_htest(display, ...)
 
-  x$estimate <- stats::setNames(unname(x$estimate), estimate_name)
-  NextMethod()
-
+  # Print omega-squared with its label and value on the same line.
+  if (!is.null(x$estimate)) {
+    estimate_names <- .format_estimate_name(names(x$estimate))
+    for (i in seq_along(x$estimate)) {
+      cat(
+        estimate_names[[i]], " = ",
+        format(unname(x$estimate[[i]]), digits = 4),
+        "\n",
+        sep = "")
+      }
+    }
   # htest printing does not know about WdStar's goodness fields, so print them
   # after the standard htest block while keeping estimate reserved for omega2.
   if (!is.null(x$goodness.of.fit)) {
     goodness_names <- .format_r2_name(names(x$goodness.of.fit))
     if (length(x$goodness.of.fit) == 1) {
-      cat(goodness_names, ": ", format(unname(x$goodness.of.fit), digits = 4), "\n", sep = "")
+      cat(goodness_names, " = ", format(unname(x$goodness.of.fit), digits = 4), "\n", sep = "")
     } else {
       cat("goodness-of-fit:\n")
       for (i in seq_along(x$goodness.of.fit)) {
-        cat("  ", goodness_names[[i]], ": ",
-            format(unname(x$goodness.of.fit[[i]]), digits = 4), "\n", sep = "")
+        cat("  ", goodness_names[[i]], " = ",
+            format(unname(x$goodness.of.fit[[i]]), digits = 4),
+            "\n",
+            sep = "")
       }
     }
   }
