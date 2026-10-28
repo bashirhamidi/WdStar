@@ -9,10 +9,10 @@ test_that("component names, default order, and explicit selections are consisten
   all <- fit("all")
   expect_identical(all$goodness.components$component, expected)
   expect_identical(names(all$goodness.of.fit),
-                   WdStar:::.goodness_component_label(expected, TRUE))
+                   unname(WdStar:::.goodness_component_label(expected, TRUE)))
   selected <- fit(c("partial", "group.only"))
   expect_identical(names(selected$goodness.of.fit),
-    WdStar:::.goodness_component_label(c("partial", "group.only"), TRUE))
+    unname(WdStar:::.goodness_component_label(c("partial", "group.only"), TRUE)))
   expect_identical(selected$goodness.components$component, expected)
   values <- setNames(all$goodness.components$pseudo.R2, expected)
   expect_equal(unname(values["semi.partial"]), unname(values["full"] - values["adjustment.only"]))
