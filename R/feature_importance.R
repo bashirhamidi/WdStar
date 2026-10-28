@@ -94,7 +94,7 @@ WdS.feature.importance <- function(dm, group, adjustment, data = NULL,
     data = data,
     # Feature importance ranks adjustment features, so use the adjustment-only
     # pseudo-R2 rather than WdS.test()'s default group/semi-partial component.
-    goodness = "adjustment"
+    goodness = "adjustment.only"
   ), args$dots))
   full_goodness_of_fit <- unname(full_result$goodness.of.fit)
 
@@ -136,7 +136,7 @@ WdS.feature.importance <- function(dm, group, adjustment, data = NULL,
         data = data,
         # Keep the leave-one-out score on the same adjustment-only scale as the
         # complete adjustment formula.
-        goodness = "adjustment"
+        goodness = "adjustment.only"
       ), args$dots))
       leave_one_out_goodness_of_fit <- unname(leave_one_out_result$goodness.of.fit)
     }
@@ -458,7 +458,7 @@ WdS.taxa.importance <- function(dm, group, physeq = NULL, taxa_table = NULL,
         strata = strata,
         adjustment = taxon_formula,
         data = formula_data,
-        goodness = c("adjustment", "semi.partial"),
+        goodness = c("adjustment.only", "semi.partial"),
         distance.diagnostics = distance.diagnostics,
         keep.eigenvalues = keep.eigenvalues
       ),
@@ -466,7 +466,7 @@ WdS.taxa.importance <- function(dm, group, physeq = NULL, taxa_table = NULL,
       verbose = verbose
     )
 
-    adjustment_r2 <- .extract_goodness_value(adjusted_result, "adjustment")
+    adjustment_r2 <- .extract_goodness_value(adjusted_result, "adjustment.only")
     semi_partial_r2 <- .extract_goodness_value(adjusted_result, "semi.partial")
     full_r2 <- .extract_goodness_value(adjusted_result, "full")
     partial_r2 <- .extract_goodness_value(adjusted_result, "partial")

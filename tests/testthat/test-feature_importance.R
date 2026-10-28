@@ -251,13 +251,13 @@ test_that("WdS.taxa.importance adds formula terms to each taxon adjustment", {
     # manual model after it adds the current taxon to the adjustment formula.
     adjustment = ~ Subject_ID + ASV,
     data = manual_data,
-    goodness = c("adjustment", "semi.partial"),
+    goodness = c("adjustment.only", "semi.partial"),
     nrep = 9
   ))
 
   expect_equal(
     result[result[["taxon"]] == "ASV1", ][["adjustment.goodness.of.fit"]],
-    .extract_goodness_value(manual_result, "adjustment")
+    .extract_goodness_value(manual_result, "adjustment.only")
   )
   expect_equal(
     result[result[["taxon"]] == "ASV1", ][["semi.partial.goodness.of.fit"]],
@@ -300,13 +300,13 @@ test_that("WdS.taxa.importance accepts explicit taxon placeholders in formula", 
     group = fi_factor_var,
     adjustment = ~ ASV + Subject_ID,
     data = manual_data,
-    goodness = c("adjustment", "semi.partial"),
+    goodness = c("adjustment.only", "semi.partial"),
     nrep = 9
   ))
 
   expect_equal(
     result$adjustment.goodness.of.fit,
-    .extract_goodness_value(manual_result, "adjustment")
+    .extract_goodness_value(manual_result, "adjustment.only")
   )
   expect_equal(
     result$semi.partial.goodness.of.fit,
