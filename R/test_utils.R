@@ -79,9 +79,14 @@ generic.distance.permutation.test =
       }
     }
 
-    stats = c(test.statistic(dm, f),
-              replicate(nrep,
-                        test.statistic(dm, generate.permutation())))
+    observed <- test.statistic(dm, f)
+    # replicate(0, ...) returns a list; keep the zero-permutation case numeric.
+    permuted_stats <- if (nrep > 0) {
+      replicate(nrep, test.statistic(dm, generate.permutation()))
+    } else {
+      numeric(0)
+    }
+    stats <- c(observed, permuted_stats)
 
     p.value = sum(stats>=stats[1])/(nrep+1)
     statistic = stats[1]
