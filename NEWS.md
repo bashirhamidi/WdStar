@@ -1,3 +1,11 @@
+# WdStar 2.5.3
+
+* Renamed the goodness component `adjustment` to `adjustment.only` without an
+  alias. The adjustment formula argument is unchanged. Components now use
+  group.only, adjustment.only, full, semi.partial, partial order; explicit
+  selections retain their requested display order. Clarified denominators,
+  interpretation limits, and selected versus calculated output fields.
+
 # WdStar 2.5.2
 
 * Print omega-squared on one line for consistency.

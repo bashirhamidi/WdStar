@@ -137,13 +137,26 @@ WdS.test(
   goodness = "all"
 )
 
-## Interpretation of adjusted components:
-## - adjustment: variation explained by the adjustment variables alone.
-## - full: variation explained jointly by adjustment variables and the tested group.
-## - semi.partial: additional total variation explained by the tested group after adjustment.
-## - partial: adjustment-residual variation explained by the tested group.
-## Negative values can occur if the residual distances contain more variation
-## than the original distance matrix.
+## Interpretation, in default component order:
+## - group.only: variation explained by the group alone, ignoring covariates.
+## - adjustment.only: variation explained by covariates alone, ignoring the group.
+## - full: variation explained by both together.
+## - semi.partial = full - adjustment.only: the group's additional fraction of
+##   ORIGINAL TOTAL distance variation.
+## - partial = semi.partial / (1 - adjustment.only): the fraction of variation
+##   REMAINING AFTER ADJUSTMENT explained by adding the group.
+## Example: adjustment.only = 0.40 and full = 0.55 give semi.partial = 0.15
+## (15 percentage points of total variation) and partial = 0.25
+## (25% of the remaining 60%).
+## These are distance-based pseudo-R2 diagnostics, not causal effects or
+## ordinary univariate R2. Components are not an additive partition:
+## group.only + adjustment.only generally differs from full.
+## Negative eigenvalue removal for non-Euclidean distances can disrupt usual
+## nested-model inequalities; negative semi.partial means full < adjustment.only.
+## Partial is NA when adjustment leaves essentially no residual variation.
+## strata restricts permutations, not the goodness-of-fit calculations.
+## goodness.of.fit contains selected/printed values in the requested order;
+## goodness.components includes all calculated components and a displayed flag.
 
 ## Continuous covariates can also be used. Age has many missing values in
 ## enterotype, so this example builds a matching Age-complete distance matrix.
