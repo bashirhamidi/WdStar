@@ -164,12 +164,12 @@ Tw2.test <- function(dm, f, nrep = 999) {
 #' \code{goodness.components} table stores components computed directly or
 #' derived from the residual distance matrices used for the requested
 #' calculation. For adjusted \code{"auto"} tests, this includes
-#' \code{adjustment}, \code{full}, \code{semi.partial}, and \code{partial}, but
+#' \code{adjustment.only}, \code{full}, \code{semi.partial}, and \code{partial}, but
 #' not \code{group.only}, which requires an additional residual distance matrix.
-#' Values near zero indicate little distance-variation reduction, larger
-#' positive values indicate greater reduction, and negative values may occur
-#' when the residual distance matrix has more variation than the original
-#' distance matrix.
+#' For group.only, adjustment.only, and full, values near zero indicate little
+#' distance-variation reduction; negative values mean the reconstructed residual
+#' distances have more variation than the original distances. Derived components
+#' have the denominators and interpretation described below.
 #'
 #' Distance diagnostics are stored separately from goodness-of-fit. When
 #' \code{distance.diagnostics = TRUE}, \code{WdS.test()} collects the diagnostic
@@ -192,24 +192,47 @@ Tw2.test <- function(dm, f, nrep = 999) {
 #' already carries diagnostics from a previous \code{a.dist()} call. In that
 #' case, the input diagnostics are preserved with role \code{"input"}.
 #'
+#' Selected values in \code{goodness.of.fit} are printed in the requested order.
+#' The \code{goodness.components} table includes all calculated components,
+#' including intermediate quantities; its \code{displayed} column identifies
+#' selected values. Both \code{goodness = "all"} and the table use the order
+#' group.only, adjustment.only, full, semi.partial, partial (when available).
+#'
 #' For adjustment variables \eqn{Z} and tested group \eqn{G}, the components are
 #' interpreted as follows:
 #' \itemize{
 #'   \item \code{group.only}: \eqn{R^2_G}, variation explained by \eqn{G}
 #'   alone, ignoring adjustment variables.
-#'   \item \code{adjustment}: \eqn{R^2_Z}, variation explained by \eqn{Z}
+#'   \item \code{adjustment.only}: \eqn{R^2_Z}, variation explained by \eqn{Z}
 #'   alone, ignoring \eqn{G}.
 #'   \item \code{full}: \eqn{R^2_{Z+G}}, variation explained by \eqn{Z} and
 #'   \eqn{G} together from one model formula.
 #'   \item \code{semi.partial}: \eqn{R^2_{Z+G} - R^2_Z}, the additional
-#'   fraction of total distance variation explained by \eqn{G} after \eqn{Z}.
+#'   fraction of original total distance variation explained by adding \eqn{G}
+#'   to the adjustment model containing \eqn{Z}.
 #'   \item \code{partial}: \eqn{(R^2_{Z+G} - R^2_Z)/(1 - R^2_Z)}, the fraction
-#'   of adjustment-residual variation explained by \eqn{G}.
+#'   of distance variation remaining after adjustment explained by adding \eqn{G}.
 #' }
+#' Semi-partial uses original total variation as its denominator; partial uses
+#' variation remaining after adjustment. For example, if adjustment.only is
+#' 0.40 and full is 0.55, semi.partial is 0.15 (15 percentage points of original
+#' total variation), whereas partial is 0.15 / 0.60 = 0.25 (25 percent of the
+#' variation remaining after adjustment).
+#'
+#' These are distance-based variation-reduction diagnostics, not ordinary
+#' univariate R-squared or causal effects. The components are not an additive
+#' partition: group.only plus adjustment.only generally differs from full
+#' because their explained variation can overlap. For non-Euclidean distances,
+#' removal of negative eigenvalues during reconstruction can disrupt usual
+#' nested-model inequalities. A negative semi.partial means full is less than
+#' adjustment.only. Partial is returned as \code{NA} when adjustment leaves
+#' essentially no residual variation. Strata restrict permutations for the
+#' p-value and do not enter these goodness-of-fit calculations.
+#'
 #' The full-model residual matrix is computed from the original \code{dm} with a
 #' combined formula. It is not computed by applying \code{a.dist()} a second
 #' time to an already residualized distance matrix. When no adjustment formula
-#' is supplied, \code{adjustment} is unavailable; if requested, \code{full},
+#' is supplied, \code{adjustment.only} is unavailable; if requested, \code{full},
 #' \code{semi.partial}, and \code{partial} reduce to the same value as
 #' \code{group.only}. Use \code{goodness = "none"} to skip these additional
 #' goodness-of-fit calculations.
@@ -240,7 +263,7 @@ Tw2.test <- function(dm, f, nrep = 999) {
 #'   are excluded; missing samples cause an error.
 #' @param goodness Which distance-based pseudo-\eqn{R^2} goodness-of-fit
 #'   component to report. Options are \code{"auto"}, \code{"group.only"},
-#'   \code{"adjustment"}, \code{"full"}, \code{"semi.partial"},
+#'   \code{"adjustment.only"}, \code{"full"}, \code{"semi.partial"},
 #'   \code{"partial"}, \code{"all"}, and \code{"none"}. The default
 #'   \code{"auto"} reports \code{"group.only"} for unadjusted tests and
 #'   \code{"semi.partial"} for adjusted tests. Multiple explicit components may
@@ -906,8 +929,8 @@ print.wdstest <- function(x, ...) {
   if (has_formula) {
     # The adjustment residual matrix is already produced for the adjusted test.
     r2_adjustment <- unname(dist.goodness.of.fit(dm, dm_adjustment_residual))
-    components[["adjustment"]] <- .goodness_component(
-      component = "adjustment",
+    components[["adjustment.only"]] <- .goodness_component(
+      component = "adjustment.only",
       pseudo.R2 = r2_adjustment,
       formula = paste(deparse(formula), collapse = ""),
       interpretation = "Distance variation explained by the adjustment formula alone, ignoring the tested group."
@@ -979,18 +1002,18 @@ print.wdstest <- function(x, ...) {
         component = "semi.partial",
         pseudo.R2 = r2_semi_partial,
         formula = "group | adjustment",
-        interpretation = "Additional fraction of total distance variation explained by the tested group after adjustment."
+        interpretation = "Additional fraction of original total distance variation explained by adding the tested group to the adjustment model."
       )
       components[["partial"]] <- .goodness_component(
         component = "partial",
         pseudo.R2 = r2_partial,
         formula = "group | adjustment",
-        interpretation = "Fraction of adjustment-residual distance variation explained by the tested group."
+        interpretation = "Fraction of distance variation remaining after adjustment that is explained by adding the tested group."
       )
     }
   } else {
-    if (any(goodness$computed %in% "adjustment")) {
-      stop("'adjustment' goodness-of-fit requires an 'adjustment' formula.")
+    if (any(goodness$computed %in% "adjustment.only")) {
+      stop("'adjustment.only' goodness-of-fit requires an 'adjustment' formula.")
     }
 
     dm_factor_residual <- .a_dist_for_goodness(
@@ -1020,6 +1043,10 @@ print.wdstest <- function(x, ...) {
     }
   }
 
+  # Use one presentation order for stored components, independent of the
+  # order in which residual matrices were needed for the calculations.
+  component_order <- c("group.only", "adjustment.only", "full", "semi.partial", "partial")
+  components <- components[component_order[component_order %in% names(components)]]
   goodness.components <- do.call(rbind, components)
   goodness.components$displayed <- goodness.components$component %in% goodness$displayed
   rownames(goodness.components) <- NULL
@@ -1036,7 +1063,7 @@ print.wdstest <- function(x, ...) {
 }
 
 .resolve_goodness <- function(goodness, has_formula) {
-  allowed <- c("auto", "group.only", "adjustment", "full",
+  allowed <- c("auto", "group.only", "adjustment.only", "full",
                "semi.partial", "partial", "all", "none")
   goodness <- unname(as.character(goodness))
   if (length(goodness) < 1) {
@@ -1063,7 +1090,7 @@ print.wdstest <- function(x, ...) {
       return(list(
         requested = "auto",
         displayed = "semi.partial",
-        computed = c("adjustment", "full", "semi.partial", "partial")
+        computed = c("adjustment.only", "full", "semi.partial", "partial")
       ))
     }
     # With no adjustment variables, the natural default is the group-only
@@ -1076,7 +1103,7 @@ print.wdstest <- function(x, ...) {
   }
   if (identical(goodness, "all")) {
     if (has_formula) {
-      all_components <- c("adjustment", "group.only", "full", "semi.partial", "partial")
+      all_components <- c("group.only", "adjustment.only", "full", "semi.partial", "partial")
     } else {
       all_components <- c("group.only", "full", "semi.partial", "partial")
     }
@@ -1088,13 +1115,13 @@ print.wdstest <- function(x, ...) {
     # semi.partial and partial both require the adjustment-only and full-model
     # pseudo-R2 values, so store those intermediate components too.
     if (any(computed %in% c("semi.partial", "partial"))) {
-      computed <- unique(c("adjustment", "full", "semi.partial", "partial", computed))
+      computed <- unique(c("adjustment.only", "full", "semi.partial", "partial", computed))
     }
     if (any(computed %in% "full")) {
-      computed <- unique(c("adjustment", computed))
+      computed <- unique(c("adjustment.only", computed))
     }
     if (any(computed %in% "group.only")) {
-      computed <- unique(c("adjustment", computed))
+      computed <- unique(c("adjustment.only", computed))
     }
   }
 
@@ -1222,7 +1249,7 @@ print.wdstest <- function(x, ...) {
   vapply(component, function(x) {
     switch(
       x,
-      "adjustment" = "pseudo-R\u00B2 for adjustment variables",
+      "adjustment.only" = "pseudo-R\u00B2 for adjustment variables only",
       "group.only" = "pseudo-R\u00B2 for group only",
       "full" = "pseudo-R\u00B2 for full model",
       "semi.partial" = if (has_formula) {

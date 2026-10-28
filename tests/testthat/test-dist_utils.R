@@ -151,7 +151,7 @@ test_that("a.dist and WdS.test keep old positional tol behavior", {
     ~ adjustment,
     metadata,
     0.1,
-    goodness = "adjustment"
+    goodness = "adjustment.only"
   ))
 
   expect_equal(attr(adjusted_dm, "distance.diagnostics")$tol, 0.1)
@@ -235,7 +235,7 @@ test_that("WdS.test resolves group, strata, and adjustment variables from data",
     adjustment = ~ adjustment,
     data = metadata,
     nrep = 1,
-    goodness = "adjustment"
+    goodness = "adjustment.only"
   ))
 
   expect_equal(unname(unquoted_result$statistic), unname(vector_result$statistic))
@@ -243,7 +243,7 @@ test_that("WdS.test resolves group, strata, and adjustment variables from data",
   expect_equal(unname(stratified_result$parameter["strata"]), "strata_col")
   expect_match(adjusted_result$method, "Adjusted")
   expect_named(adjusted_result$goodness.of.fit,
-               "pseudo-R\u00B2 for adjustment variables")
+               "pseudo-R\u00B2 for adjustment variables only")
 })
 
 test_that("WdS.test keeps legacy argument names working with deprecation warnings", {
@@ -265,7 +265,7 @@ test_that("WdS.test keeps legacy argument names working with deprecation warning
       group = factor_var,
       formula = ~ adjustment,
       nrep = 1,
-      goodness = "adjustment"
+      goodness = "adjustment.only"
     )),
     "'formula' is deprecated"
   )
@@ -353,11 +353,11 @@ test_that("WdS.test reports auto goodness of fit for adjusted and unadjusted tes
   expect_equal(unname(adjusted_result$goodness.of.fit), expected_semi_partial)
   expect_setequal(
     adjusted_result$goodness.components$component,
-    c("adjustment", "full", "semi.partial", "partial")
+    c("adjustment.only", "full", "semi.partial", "partial")
   )
   expect_equal(
     adjusted_result$goodness.components$pseudo.R2[
-      adjusted_result$goodness.components$component == "adjustment"
+      adjusted_result$goodness.components$component == "adjustment.only"
     ],
     unname(expected_adjustment_r_squared)
   )
@@ -395,7 +395,7 @@ test_that("WdS.test can report selected goodness-of-fit components", {
     group = factor_var,
     nrep = 9,
     adjustment = ~ adjustment,
-    goodness = "adjustment"
+    goodness = "adjustment.only"
   ))
   all_result <- suppressMessages(WdS.test(
     dm = distance_matrix,
@@ -411,14 +411,14 @@ test_that("WdS.test can report selected goodness-of-fit components", {
     goodness = "none"
   )
 
-  expect_named(adjustment_result$goodness.of.fit, "pseudo-R\u00B2 for adjustment variables")
+  expect_named(adjustment_result$goodness.of.fit, "pseudo-R\u00B2 for adjustment variables only")
   expect_setequal(
     all_result$goodness.components$component,
-    c("adjustment", "group.only", "full", "semi.partial", "partial")
+    c("group.only", "adjustment.only", "full", "semi.partial", "partial")
   )
   expect_equal(
     all_result$goodness.components$component[all_result$goodness.components$displayed],
-    c("adjustment", "group.only", "full", "semi.partial", "partial")
+    c("group.only", "adjustment.only", "full", "semi.partial", "partial")
   )
   expect_null(none_result$goodness.of.fit)
   expect_null(none_result$goodness.components)
@@ -433,7 +433,7 @@ test_that("WdS.test can report selected goodness-of-fit components", {
     "pseudo-R\u00B2 for group only"
   )
   expect_error(
-    WdS.test(dm = distance_matrix, group = factor_var, nrep = 9, goodness = "adjustment"),
+    WdS.test(dm = distance_matrix, group = factor_var, nrep = 9, goodness = "adjustment.only"),
     "requires an 'adjustment' formula"
   )
   expect_error(
@@ -451,7 +451,7 @@ test_that("WdS.test collects distance diagnostics separately from goodness compo
     group = factor_var,
     nrep = 9,
     adjustment = ~ adjustment,
-    goodness = "adjustment"
+    goodness = "adjustment.only"
   ))
   all_result <- suppressMessages(WdS.test(
     dm = distance_matrix,
