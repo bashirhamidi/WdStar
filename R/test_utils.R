@@ -975,7 +975,7 @@ print.wdstest <- function(x, digits = 4, ...) {
                                       keep.eigenvalues = FALSE,
                                       a.dist.args = list(), group_label = "group") {
   has_formula <- !is.null(formula)
-  group_text <- .display_group_label(group_label)
+  group_text <- .display_group_label(group_label, formula_data)
   group_model <- paste("~", group_text)
   adjustment_model <- if (has_formula) .display_adjustment_model(formula) else NULL
   conditional_model <- .display_conditional_model(group_text, formula, formula_data)
@@ -1312,9 +1312,14 @@ print.wdstest <- function(x, digits = 4, ...) {
   paste("~", rhs)
 }
 
-.display_group_label <- function(label) {
+.display_group_label <- function(label, data = NULL) {
   # Metadata columns may have nonsyntactic names; expressions are retained.
-  expr <- tryCatch(parse(text = label)[[1L]], error = function(e) as.name(label))
+  expr <- if (.data_has_name(data, label)) as.name(label) else
+    tryCatch({
+      parsed <- parse(text = label)
+      if (length(parsed) != 1L) stop("Expected one expression")
+      parsed[[1L]]
+    }, error = function(e) as.name(label))
   text <- paste(deparse(expr, backtick = TRUE, width.cutoff = 500L), collapse = " ")
   if (is.call(expr) && as.character(expr[[1L]])[1L] %in% c("+", "-", "*", "/", "|", "~")) {
     text <- paste0("(", text, ")")
