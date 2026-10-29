@@ -64,4 +64,7 @@ test_that("model labels preserve expressions, nonsyntactic names and intercept c
                                 adjustment = ~ I(z^2), data = meta, goodness = "all", nrep = 0))
   expect_true(grepl('factor(meta[["group name"]])', expression$goodness.components$model[1], fixed=TRUE))
   expect_true(grepl("I(z^2)", expression$goodness.components$model[4], fixed=TRUE))
+  names(meta)[1] <- "a+b"
+  unusual <- WdS.test(dm, "a+b", data = meta, nrep = 0)
+  expect_identical(unusual$goodness.components$model, "~ `a+b`")
 })
