@@ -1,5 +1,10 @@
 # WdStar 2.5.3
 
+* Clarified the pseudo-R-squared and WdS-derived omega-squared definitions and
+  equations. Printed results now separate parameters, WdS, p-value, effect size
+  estimate, and goodness-of-fit; show the grouping label (up to 30 characters);
+  and use sentence-case labels. Help-index titles use plain text.
+
 * Renamed the goodness component `adjustment` to `adjustment.only` without an
   alias. The adjustment formula argument is unchanged. Components now use
   group.only, adjustment.only, full, semi.partial, partial order; explicit

@@ -205,5 +205,26 @@ Further examples are provided in the package documentation and may be accessed b
 ?dist.goodness.of.fit
 ```
 
+## Reading printed test results
+
+`WdS.test()` prints the data description, parameters, WdS statistic, p-value,
+omega-squared effect size estimate, and selected goodness-of-fit components.
+The data description includes the tested variable name and number of levels.
+Names longer than 30 characters are shortened only for display; full labels
+remain in `res$data.info` and `res$data.name`. Variable names preserve their case.
+
+- `res$statistic` contains WdS; `res$p.value` contains the permutation p-value.
+- `res$estimate` contains omega-squared, estimated from WdS as
+  `(k - 1) * (WdS - 1) / ((k - 1) * (WdS - 1) + N)`.
+  This uses the ordinary one-way ANOVA omega-squared transformation with WdS
+  in place of the classical F statistic.
+- `res$goodness.of.fit` contains the selected distance-based pseudo-R2 values;
+  `res$goodness.components` includes the calculated components and interpretations.
+  Their values depend on squared original and residual distances. For univariate
+  Euclidean data and a corresponding least-squares model with an intercept,
+  the basic measure equals ordinary R2, apart from numerical reconstruction.
+- Stratification restricts permutations for the p-value; it does not adjust
+  WdS, omega-squared, or R2. Use the `adjustment` formula for covariate adjustment.
+
 ## Feature Requests and Bugs
 We welcome feature requests and bug reports and kindly ask you to submit them via [our GitHub issue tracker.](https://github.com/alekseyenko/WdStar/issues)

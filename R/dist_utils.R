@@ -142,8 +142,11 @@ dist.sigma2 <- function(dm) {
 #'   diagnostic is
 #'   \deqn{R^2_{pseudo} = 1 - V(D_{residual}) / V(D_{original}).}
 #'   The shared sample-size factor cancels in the ratio. This is a
-#'   distance-based variation-reduction diagnostic, not ordinary least-squares
-#'   \eqn{R^2} for a univariate response. Values near zero indicate little
+#'   distance-based variation-reduction diagnostic. With univariate Euclidean
+#'   distances and residual distances from the corresponding least-squares model
+#'   with an intercept, it equals ordinary \eqn{R^2} (apart from numerical
+#'   reconstruction). For arbitrary dissimilarities this equivalence need not hold.
+#'   Values near zero indicate little
 #'   reduction in distance variation, larger positive values indicate greater
 #'   reduction, and negative values may occur when the residual distance matrix
 #'   has more variation than the original distance matrix.

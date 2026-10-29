@@ -2,7 +2,7 @@
 % Please edit documentation in R/posthoc_utils.R
 \name{Tw2.posthoc.1vsAll.tests}
 \alias{Tw2.posthoc.1vsAll.tests}
-\title{Perform 1-vs-All Post Hoc Tests for the \eqn{T_w^2} Statistic}
+\title{Perform 1-vs-All Post Hoc Tests for the Tw2 Statistic}
 \usage{
 Tw2.posthoc.1vsAll.tests(dm, f, nrep = 999)
 }

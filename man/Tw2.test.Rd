@@ -2,7 +2,7 @@
 % Please edit documentation in R/test_utils.R
 \name{Tw2.test}
 \alias{Tw2.test}
-\title{Conduct a \eqn{T_w^2} Distance-Based Permutation Test}
+\title{Conduct a Tw2 Distance-Based Permutation Test}
 \usage{
 Tw2.test(dm, f, nrep = 999)
 }

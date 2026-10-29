@@ -6,15 +6,15 @@ test_that("printing keeps effect sizes on one line without changing results", {
     x <- WdS.test(dm, group, nrep = 3, goodness = goodness)
     original <- x
     output <- capture.output(returned <- print(x))
-    estimate_line <- output[grepl("effect size, omega-squared", output, fixed = TRUE)]
+    estimate_line <- output[grepl("Effect size estimate", output, fixed = TRUE)]
     expect_length(estimate_line, 1)
     expect_match(estimate_line, " = [-0-9.NA]")
     expect_false(any(grepl("=  =", output, fixed = TRUE)))
     expect_false(any(grepl("sample estimates:", output, fixed = TRUE)))
     expect_identical(returned, original)
     expect_identical(x, original)
-    for (label in WdStar:::.format_r2_name(names(x$goodness.of.fit))) {
-      expect_true(any(grepl(label, output, fixed = TRUE)))
+    for (label in WdStar:::.wdstest_goodness_labels(x)) {
+      expect_true(any(grepl(tolower(label), tolower(output), fixed = TRUE)))
     }
   }
 })
@@ -30,7 +30,7 @@ test_that("method labels reflect adjustment and stratification independently", {
                                       data = meta, nrep = 3, goodness = "all"))
     blocked <- suppressMessages(WdS.test(dm, group, adjustment = adjustment,
                         strata = block, data = meta, nrep = 3, goodness = "all"))
-    expect_match(blocked$method, if (adjusted) "Stratified-Adjusted" else "Stratified Distance")
+    expect_match(blocked$method, if (adjusted) "Adjusted and stratified" else "Stratified distance")
     expect_identical(blocked$statistic, plain$statistic)
     expect_identical(blocked$estimate, plain$estimate)
     expect_equal(blocked$goodness.components, plain$goodness.components)

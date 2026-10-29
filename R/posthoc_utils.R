@@ -1,4 +1,4 @@
-#' Perform Pairwise Post Hoc Tests for the \eqn{T_w^2} Statistic
+#' Perform Pairwise Post Hoc Tests for the Tw2 Statistic
 #'
 #' This function performs pairwise post hoc tests for the \eqn{T_w^2} statistic
 #' using permutation tests. The \eqn{T_w^2} statistic is a two-group
@@ -45,7 +45,7 @@ Tw2.posthoc.tests <- function(dm, f, nrep = 999) {
   res
 }
 
-#' Perform 1-vs-All Post Hoc Tests for the \eqn{T_w^2} Statistic
+#' Perform 1-vs-All Post Hoc Tests for the Tw2 Statistic
 #'
 #' This function performs 1-vs-all post hoc tests for the \eqn{T_w^2} statistic
 #' using permutation tests. This is useful for comparing each group against all
