@@ -148,8 +148,8 @@ WdS.test(
 ## Example: adjustment.only = 0.40 and full = 0.55 give semi.partial = 0.15
 ## (15 percentage points of total variation) and partial = 0.25
 ## (25% of the remaining 60%).
-## These are distance-based pseudo-R2 diagnostics, not causal effects or
-## ordinary univariate R2. Components are not an additive partition:
+## These distance-based diagnostics generalize ordinary R2 and match it in
+## the Euclidean setting described below. They do not establish causal effects. Components are not an additive partition:
 ## group.only + adjustment.only generally differs from full.
 ## Negative eigenvalue removal for non-Euclidean distances can disrupt usual
 ## nested-model inequalities; negative semi.partial means full < adjustment.only.
@@ -230,6 +230,38 @@ Further examples are provided in the package documentation and may be accessed b
 ?WdS.taxa.importance
 ```
 
+## Component and diagnostic tables
+
+`res$goodness.components` contains `component`, `pseudo.R2`, `model`, and
+`displayed`. Definitions and interpretations are documented in `?WdS.test`.
+Actual grouping names replace generic placeholders, for example:
+
+| component | model |
+|---|---|
+| group.only | `~ Enterotype` |
+| adjustment.only | `~ SeqTech` |
+| full | `~ SeqTech + Enterotype` |
+| semi.partial | `(Enterotype | SeqTech) / total` |
+| partial | `(Enterotype | SeqTech) / residual` |
+
+The conditioning bar denotes additional variation explained by adding the group
+following adjustment. `total` means original total distance variation; `residual`
+means variation remaining after adjustment. Multiple adjustment terms are grouped,
+for example `(Enterotype | (Age + SeqTech)) / total`. These are descriptive labels,
+not necessarily executable R formulas. Unadjusted labels use `none` after the bar;
+both reference variations then equal original total variation, so the existing
+equal component values are retained.
+
+`res$distance.diagnostics` also uses `component` and `model`, retained even with
+`goodness = "none"`. It contains only matrices actually reconstructed, ordered
+as group.only, adjustment.only, full when present; inherited `input` diagnostics
+precede them. Direct `a.dist()` diagnostics use adjustment.only. No extra matrices
+are constructed for semi.partial or partial. Raw eigenvalues precede tolerance
+handling and negative removal; final values follow both steps. Small negative
+values zeroed by tolerance are counted separately from remaining negative values
+removed afterward. `prop.negative.raw` measures absolute eigenvalue magnitude,
+not eigenvalue counts. See `?a.dist` for each diagnostic field.
+
 ## Reading printed test results
 
 `WdS.test()` prints the data description, parameters, WdS statistic, p-value,
@@ -244,7 +276,7 @@ remain in `res$data.info` and `res$data.name`. Variable names preserve their cas
   This uses the ordinary one-way ANOVA omega-squared transformation with WdS
   in place of the classical F statistic.
 - `res$goodness.of.fit` contains the selected distance-based pseudo-R2 values;
-  `res$goodness.components` includes the calculated components and interpretations.
+  `res$goodness.components` includes the calculated components and model descriptions.
   Their values depend on squared original and residual distances. For univariate
   Euclidean data and a corresponding least-squares model with an intercept,
   the basic measure equals ordinary R2, apart from numerical reconstruction.

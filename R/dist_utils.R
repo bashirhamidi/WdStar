@@ -343,9 +343,12 @@ dist.cohen.d <- function(dm, f) {
 #'
 #'   The diagnostic fields include:
 #'   \itemize{
-#'     \item \code{role}: how \code{WdS.test()} used the matrix, if applicable;
-#'     direct \code{a.dist()} calls leave this as \code{NA}.
-#'     \item \code{formula} and \code{tol}: the formula and tolerance used.
+#'     \item \code{component}: \code{adjustment.only} for a direct
+#'     \code{a.dist()} call; \code{WdS.test()} assigns \code{group.only},
+#'     \code{adjustment.only}, or \code{full} according to the model, and
+#'     \code{input} for inherited diagnostics on the supplied distance matrix.
+#'     \item \code{model} and \code{tol}: full model description and tolerance.
+#'     The model column is retained even when goodness-of-fit is disabled.
 #'     \item \code{n.eigenvalues}: number of eigenvalues from the decomposition.
 #'     \item \code{n.positive.raw}, \code{n.negative.raw}, and
 #'     \code{n.zero.raw}: signs before tolerance handling.
@@ -361,7 +364,14 @@ dist.cohen.d <- function(dm, f) {
 #'     \item \code{min.eigenvalue}, \code{max.eigenvalue},
 #'     \code{sum.positive.raw}, \code{sum.negative.raw},
 #'     \code{sum.negative.magnitude.raw}, and \code{prop.negative.raw}: compact
-#'     summaries of the raw eigenspectrum.
+#'     summaries of the raw eigenspectrum. Here raw means before either
+#'     zeroing step; final means after tolerance handling and removal of remaining
+#'     negative eigenvalues. \code{prop.negative.raw} is the negative absolute
+#'     magnitude divided by total absolute eigenvalue magnitude, not the
+#'     fraction of eigenvalues that are negative. The counts satisfy
+#'     \code{n.negative.raw = n.negative.zeroed.by.tol + n.negative.removed}.
+#'     Individual raw eigenvalues are stored only when requested; their zeroing
+#'     reason can be reconstructed from their sign and the recorded tolerance.
 #'     \item \code{eigenvalues}: optional raw eigenvalue vector, present only
 #'     when \code{keep.eigenvalues = TRUE}.
 #'   }
@@ -570,8 +580,8 @@ a.dist = function(dm, adjustment, data = parent.frame(), tol=10^-8,
   negative.magnitude <- sum(abs(lambda.raw[raw.negative]))
 
   diagnostics <- data.frame(
-    role = NA_character_,
-    formula = paste(deparse(formula), collapse = ""),
+    component = "adjustment.only",
+    model = .display_adjustment_model(formula),
     tol = tol,
     n.eigenvalues = length(lambda.raw),
     n.positive.raw = sum(raw.positive),

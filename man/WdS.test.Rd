@@ -153,7 +153,7 @@ have the denominators and interpretation described below.
 Distance diagnostics are stored separately from goodness-of-fit. When
 \code{distance.diagnostics = TRUE}, \code{WdS.test()} collects the diagnostic
 summaries attached by \code{\link{a.dist}()} for each residual distance
-matrix it constructs, using roles such as \code{"adjustment"},
+matrix it constructs, using components such as \code{"adjustment.only"},
 \code{"group.only"}, and \code{"full"}. These diagnostics record the
 tolerance used, how many eigenvalues were treated as zero by \code{tol}, and
 how many negative eigenvalues were removed during reconstruction. Use
@@ -162,14 +162,14 @@ diagnosis; the default keeps only the compact summary.
 
 The diagnostic rows correspond to residual distance matrices actually
 constructed by the call. For example, an adjusted test with \code{goodness =
-"auto"} stores rows for \code{"adjustment"} and \code{"full"};
+"auto"} stores rows for \code{"adjustment.only"} and \code{"full"};
 \code{"group.only"} is added only when requested, such as with \code{goodness
 = "all"}. An unadjusted test with the default \code{goodness = "auto"} stores
 a \code{"group.only"} row. If \code{goodness = "none"} and no adjustment
 formula is supplied, no residual distance matrix is constructed and
 \code{distance.diagnostics} is \code{NULL}, unless the input \code{dm}
 already carries diagnostics from a previous \code{a.dist()} call. In that
-case, the input diagnostics are preserved with role \code{"input"}.
+case, the input diagnostics are preserved with component \code{"input"}.
 
 For original distances \eqn{D} and model-residual distances \eqn{D_{res}},
 the basic goodness-of-fit measure is
@@ -203,20 +203,36 @@ including intermediate quantities; its \code{displayed} column identifies
 selected values. Both \code{goodness = "all"} and the table use the order
 group.only, adjustment.only, full, semi.partial, partial (when available).
 
+Both returned tables use \code{component} and \code{model} to identify their
+rows. The goodness table additionally contains \code{pseudo.R2} and
+\code{displayed}; explanations are provided here rather than in a text column.
+Models use the full supplied grouping label and adjustment variables. The
+notation \code{(Enterotype | SeqTech) / total} denotes additional variation
+explained by adding Enterotype after SeqTech, divided by original total
+distance variation. Replacing \code{total} with \code{residual} uses variation
+remaining after SeqTech as the denominator. Compound adjustments are enclosed
+in parentheses, e.g. \code{(Enterotype | (Age + SeqTech)) / total}.
+These are descriptive model labels, not necessarily executable R formulas.
+With no adjustment, \code{none} appears after the conditioning bar and both
+denominators refer to original total variation; the component values remain
+mathematically equal. Names and expressions are not truncated in these tables.
+
 For adjustment variables \eqn{Z} and tested group \eqn{G}, the components are
 interpreted as follows:
 \itemize{
   \item \code{group.only}: \eqn{R^2_G}, variation explained by \eqn{G}
-  alone, ignoring adjustment variables.
+  alone as a fraction of original total distance variation, ignoring
+  adjustment variables.
   \item \code{adjustment.only}: \eqn{R^2_Z}, variation explained by \eqn{Z}
-  alone, ignoring \eqn{G}.
+  alone as a fraction of original total distance variation, ignoring \eqn{G}.
   \item \code{full}: \eqn{R^2_{Z+G}}, variation explained by \eqn{Z} and
-  \eqn{G} together from one model formula.
-  \item \code{semi.partial}: \eqn{R^2_{Z+G} - R^2_Z}, the additional
-  fraction of original total distance variation explained by adding \eqn{G}
-  to the adjustment model containing \eqn{Z}.
-  \item \code{partial}: \eqn{(R^2_{Z+G} - R^2_Z)/(1 - R^2_Z)}, the fraction
-  of distance variation remaining after adjustment explained by adding \eqn{G}.
+  \eqn{G} together as a fraction of original total distance variation.
+  \item \code{semi.partial}: \eqn{R^2_{Z+G} - R^2_Z}, additional variation
+  explained by adding the tested group after adjustment, relative to original
+  total distance variation.
+  \item \code{partial}: \eqn{(R^2_{Z+G} - R^2_Z)/(1 - R^2_Z)}, additional
+  variation explained by adding the tested group after adjustment, relative
+  to distance variation remaining after adjustment.
 }
 Semi-partial uses original total variation as its denominator; partial uses
 variation remaining after adjustment. For example, if adjustment.only is
@@ -224,8 +240,9 @@ variation remaining after adjustment. For example, if adjustment.only is
 total variation), whereas partial is 0.15 / 0.60 = 0.25 (25 percent of the
 variation remaining after adjustment).
 
-These are distance-based variation-reduction diagnostics, not ordinary
-univariate R-squared or causal effects. The components are not an additive
+These diagnostics generalize ordinary R-squared to distance data, with
+equivalence in the Euclidean setting described above. They do not establish
+causal effects. The components are not an additive
 partition: group.only plus adjustment.only generally differs from full
 because their explained variation can overlap. For non-Euclidean distances,
 removal of negative eigenvalues during reconstruction can disrupt usual

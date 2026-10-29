@@ -179,7 +179,7 @@ Tw2.test <- function(dm, f, nrep = 999) {
 #' Distance diagnostics are stored separately from goodness-of-fit. When
 #' \code{distance.diagnostics = TRUE}, \code{WdS.test()} collects the diagnostic
 #' summaries attached by \code{\link{a.dist}()} for each residual distance
-#' matrix it constructs, using roles such as \code{"adjustment"},
+#' matrix it constructs, using components such as \code{"adjustment.only"},
 #' \code{"group.only"}, and \code{"full"}. These diagnostics record the
 #' tolerance used, how many eigenvalues were treated as zero by \code{tol}, and
 #' how many negative eigenvalues were removed during reconstruction. Use
@@ -188,14 +188,14 @@ Tw2.test <- function(dm, f, nrep = 999) {
 #'
 #' The diagnostic rows correspond to residual distance matrices actually
 #' constructed by the call. For example, an adjusted test with \code{goodness =
-#' "auto"} stores rows for \code{"adjustment"} and \code{"full"};
+#' "auto"} stores rows for \code{"adjustment.only"} and \code{"full"};
 #' \code{"group.only"} is added only when requested, such as with \code{goodness
 #' = "all"}. An unadjusted test with the default \code{goodness = "auto"} stores
 #' a \code{"group.only"} row. If \code{goodness = "none"} and no adjustment
 #' formula is supplied, no residual distance matrix is constructed and
 #' \code{distance.diagnostics} is \code{NULL}, unless the input \code{dm}
 #' already carries diagnostics from a previous \code{a.dist()} call. In that
-#' case, the input diagnostics are preserved with role \code{"input"}.
+#' case, the input diagnostics are preserved with component \code{"input"}.
 #'
 #' For original distances \eqn{D} and model-residual distances \eqn{D_{res}},
 #' the basic goodness-of-fit measure is
@@ -229,20 +229,36 @@ Tw2.test <- function(dm, f, nrep = 999) {
 #' selected values. Both \code{goodness = "all"} and the table use the order
 #' group.only, adjustment.only, full, semi.partial, partial (when available).
 #'
+#' Both returned tables use \code{component} and \code{model} to identify their
+#' rows. The goodness table additionally contains \code{pseudo.R2} and
+#' \code{displayed}; explanations are provided here rather than in a text column.
+#' Models use the full supplied grouping label and adjustment variables. The
+#' notation \code{(Enterotype | SeqTech) / total} denotes additional variation
+#' explained by adding Enterotype after SeqTech, divided by original total
+#' distance variation. Replacing \code{total} with \code{residual} uses variation
+#' remaining after SeqTech as the denominator. Compound adjustments are enclosed
+#' in parentheses, e.g. \code{(Enterotype | (Age + SeqTech)) / total}.
+#' These are descriptive model labels, not necessarily executable R formulas.
+#' With no adjustment, \code{none} appears after the conditioning bar and both
+#' denominators refer to original total variation; the component values remain
+#' mathematically equal. Names and expressions are not truncated in these tables.
+#'
 #' For adjustment variables \eqn{Z} and tested group \eqn{G}, the components are
 #' interpreted as follows:
 #' \itemize{
 #'   \item \code{group.only}: \eqn{R^2_G}, variation explained by \eqn{G}
-#'   alone, ignoring adjustment variables.
+#'   alone as a fraction of original total distance variation, ignoring
+#'   adjustment variables.
 #'   \item \code{adjustment.only}: \eqn{R^2_Z}, variation explained by \eqn{Z}
-#'   alone, ignoring \eqn{G}.
+#'   alone as a fraction of original total distance variation, ignoring \eqn{G}.
 #'   \item \code{full}: \eqn{R^2_{Z+G}}, variation explained by \eqn{Z} and
-#'   \eqn{G} together from one model formula.
-#'   \item \code{semi.partial}: \eqn{R^2_{Z+G} - R^2_Z}, the additional
-#'   fraction of original total distance variation explained by adding \eqn{G}
-#'   to the adjustment model containing \eqn{Z}.
-#'   \item \code{partial}: \eqn{(R^2_{Z+G} - R^2_Z)/(1 - R^2_Z)}, the fraction
-#'   of distance variation remaining after adjustment explained by adding \eqn{G}.
+#'   \eqn{G} together as a fraction of original total distance variation.
+#'   \item \code{semi.partial}: \eqn{R^2_{Z+G} - R^2_Z}, additional variation
+#'   explained by adding the tested group after adjustment, relative to original
+#'   total distance variation.
+#'   \item \code{partial}: \eqn{(R^2_{Z+G} - R^2_Z)/(1 - R^2_Z)}, additional
+#'   variation explained by adding the tested group after adjustment, relative
+#'   to distance variation remaining after adjustment.
 #' }
 #' Semi-partial uses original total variation as its denominator; partial uses
 #' variation remaining after adjustment. For example, if adjustment.only is
@@ -250,8 +266,9 @@ Tw2.test <- function(dm, f, nrep = 999) {
 #' total variation), whereas partial is 0.15 / 0.60 = 0.25 (25 percent of the
 #' variation remaining after adjustment).
 #'
-#' These are distance-based variation-reduction diagnostics, not ordinary
-#' univariate R-squared or causal effects. The components are not an additive
+#' These diagnostics generalize ordinary R-squared to distance data, with
+#' equivalence in the Euclidean setting described above. They do not establish
+#' causal effects. The components are not an additive
 #' partition: group.only plus adjustment.only generally differs from full
 #' because their explained variation can overlap. For non-Euclidean distances,
 #' removal of negative eigenvalues during reconstruction can disrupt usual
@@ -536,6 +553,7 @@ WdS.test <- function(dm, group, nrep=999, strata=NULL, adjustment=NULL, data=NUL
   # For adjusted tests, dm is now the adjustment-residual distance matrix.
   goodness <- .compute_wdstest_goodness(
     dm = original_dm,
+    group_label = args$group_label,
     f = group,
     formula = adjustment,
     formula_data = data,
@@ -955,23 +973,27 @@ print.wdstest <- function(x, digits = 4, ...) {
                                       goodness = "auto",
                                       distance.diagnostics = TRUE,
                                       keep.eigenvalues = FALSE,
-                                      a.dist.args = list()) {
+                                      a.dist.args = list(), group_label = "group") {
   has_formula <- !is.null(formula)
+  group_text <- .display_group_label(group_label)
+  group_model <- paste("~", group_text)
+  adjustment_model <- if (has_formula) .display_adjustment_model(formula) else NULL
+  conditional_model <- .display_conditional_model(group_text, formula, formula_data)
   goodness <- .resolve_goodness(goodness, has_formula = has_formula)
   diagnostics <- list()
 
   if (has_formula && isTRUE(distance.diagnostics)) {
-    diagnostics[["adjustment"]] <- .collect_distance_diagnostics(
+    diagnostics[["adjustment.only"]] <- .collect_distance_diagnostics(
       dm_adjustment_residual,
-      role = "adjustment",
-      formula = paste(deparse(formula), collapse = "")
+      component = "adjustment.only",
+      model = adjustment_model
     )
   }
   if (!has_formula && isTRUE(distance.diagnostics) &&
       !is.null(attr(dm, "distance.diagnostics", exact = TRUE))) {
     diagnostics[["input"]] <- .collect_distance_diagnostics(
       dm,
-      role = "input"
+      component = "input"
     )
   }
 
@@ -997,8 +1019,7 @@ print.wdstest <- function(x, digits = 4, ...) {
     components[["adjustment.only"]] <- .goodness_component(
       component = "adjustment.only",
       pseudo.R2 = r2_adjustment,
-      formula = paste(deparse(formula), collapse = ""),
-      interpretation = "Distance variation explained by the adjustment formula alone, ignoring the tested group."
+      model = adjustment_model
     )
 
     # group.only requires its own F-only residual distance matrix. It is
@@ -1015,15 +1036,14 @@ print.wdstest <- function(x, digits = 4, ...) {
       )
       diagnostics[["group.only"]] <- .collect_distance_diagnostics(
         dm_factor_residual,
-        role = "group.only",
-        formula = "~ group"
+        component = "group.only",
+        model = group_model
       )
       r2_factor <- unname(dist.goodness.of.fit(dm, dm_factor_residual))
       components[["group.only"]] <- .goodness_component(
         component = "group.only",
         pseudo.R2 = r2_factor,
-        formula = "~ group",
-        interpretation = "Distance variation explained by the tested group alone, ignoring adjustment variables."
+        model = group_model
       )
     }
 
@@ -1041,8 +1061,8 @@ print.wdstest <- function(x, digits = 4, ...) {
       )
       diagnostics[["full"]] <- .collect_distance_diagnostics(
         dm_full_residual,
-        role = "full",
-        formula = .display_formula_with_factor(formula, formula_data)
+        component = "full",
+        model = .display_formula_with_factor(formula, formula_data, factor_label = group_text)
       )
       r2_full <- unname(dist.goodness.of.fit(dm, dm_full_residual))
       r2_semi_partial <- r2_full - r2_adjustment
@@ -1060,20 +1080,17 @@ print.wdstest <- function(x, digits = 4, ...) {
       components[["full"]] <- .goodness_component(
         component = "full",
         pseudo.R2 = r2_full,
-        formula = .display_formula_with_factor(formula, formula_data),
-        interpretation = "Distance variation explained jointly by the adjustment formula and the tested group."
+        model = .display_formula_with_factor(formula, formula_data, factor_label = group_text)
       )
       components[["semi.partial"]] <- .goodness_component(
         component = "semi.partial",
         pseudo.R2 = r2_semi_partial,
-        formula = "group | adjustment",
-        interpretation = "Additional fraction of original total distance variation explained by adding the tested group to the adjustment model."
+        model = paste(conditional_model, "/ total")
       )
       components[["partial"]] <- .goodness_component(
         component = "partial",
         pseudo.R2 = r2_partial,
-        formula = "group | adjustment",
-        interpretation = "Fraction of distance variation remaining after adjustment that is explained by adding the tested group."
+        model = paste(conditional_model, "/ residual")
       )
     }
   } else {
@@ -1091,8 +1108,8 @@ print.wdstest <- function(x, digits = 4, ...) {
     )
     diagnostics[["group.only"]] <- .collect_distance_diagnostics(
       dm_factor_residual,
-      role = "group.only",
-      formula = "~ group"
+      component = "group.only",
+      model = group_model
     )
     r2_factor <- unname(dist.goodness.of.fit(dm, dm_factor_residual))
 
@@ -1102,8 +1119,10 @@ print.wdstest <- function(x, digits = 4, ...) {
       components[[component]] <- .goodness_component(
         component = component,
         pseudo.R2 = r2_factor,
-        formula = "~ group",
-        interpretation = .unadjusted_goodness_interpretation(component)
+        model = switch(component,
+          semi.partial = paste(conditional_model, "/ total"),
+          partial = paste(conditional_model, "/ residual"),
+          group_model)
       )
     }
   }
@@ -1209,28 +1228,21 @@ print.wdstest <- function(x, digits = 4, ...) {
   )
 }
 
-.collect_distance_diagnostics <- function(dm, role, formula = NULL) {
+.collect_distance_diagnostics <- function(dm, component, model = NULL) {
   diagnostics <- attr(dm, "distance.diagnostics", exact = TRUE)
-  if (is.null(diagnostics)) {
-    return(NULL)
-  }
-
-  # Roles are assigned by WdS.test because a.dist() does not know whether its
-  # residual matrix is being used for adjustment, group-only, or full-model work.
-  diagnostics$role <- role
-  if (!is.null(formula)) {
-    diagnostics$formula <- formula
-  }
+  if (is.null(diagnostics)) return(NULL)
+  diagnostics$component <- component
+  if (!is.null(model)) diagnostics$model <- model
   diagnostics
 }
 
 .combine_distance_diagnostics <- function(diagnostics) {
   diagnostics <- Filter(Negate(is.null), diagnostics)
-  if (length(diagnostics) == 0) {
-    return(NULL)
-  }
-
+  if (length(diagnostics) == 0) return(NULL)
   combined <- do.call(rbind, diagnostics)
+  # Inherited input diagnostics precede newly constructed model components.
+  component_order <- c("input", "group.only", "adjustment.only", "full")
+  combined <- combined[order(match(combined$component, component_order)), , drop = FALSE]
   rownames(combined) <- NULL
   combined
 }
@@ -1300,14 +1312,35 @@ print.wdstest <- function(x, digits = 4, ...) {
   paste("~", rhs)
 }
 
-.goodness_component <- function(component, pseudo.R2, formula, interpretation) {
-  data.frame(
-    component = component,
-    pseudo.R2 = pseudo.R2,
-    formula = formula,
-    interpretation = interpretation,
-    stringsAsFactors = FALSE
-  )
+.display_group_label <- function(label) {
+  # Metadata columns may have nonsyntactic names; expressions are retained.
+  expr <- tryCatch(parse(text = label)[[1L]], error = function(e) as.name(label))
+  text <- paste(deparse(expr, backtick = TRUE, width.cutoff = 500L), collapse = " ")
+  if (is.call(expr) && as.character(expr[[1L]])[1L] %in% c("+", "-", "*", "/", "|", "~")) {
+    text <- paste0("(", text, ")")
+  }
+  text
+}
+
+.display_adjustment_model <- function(formula) {
+  paste("~", paste(deparse(formula[[2L]], width.cutoff = 500L), collapse = " "))
+}
+
+.display_conditional_model <- function(group_text, formula, data) {
+  adjustment_text <- if (is.null(formula)) "none" else
+    paste(deparse(formula[[2L]], width.cutoff = 500L), collapse = " ")
+  # Parenthesize compound RHS expressions, preserving interactions, transforms,
+  # and no-intercept conventions rather than reducing them to variable names.
+  if (!is.null(formula) && is.call(formula[[2L]]) &&
+      as.character(formula[[2L]][[1L]])[1L] %in% c("+", "-", "*", "/", "|")) {
+    adjustment_text <- paste0("(", adjustment_text, ")")
+  }
+  paste0("(", group_text, " | ", adjustment_text, ")")
+}
+
+.goodness_component <- function(component, pseudo.R2, model) {
+  data.frame(component = component, pseudo.R2 = pseudo.R2, model = model,
+             stringsAsFactors = FALSE)
 }
 
 .goodness_component_label <- function(component, has_formula) {
@@ -1330,17 +1363,6 @@ print.wdstest <- function(x, digits = 4, ...) {
       x
     )
   }, character(1))
-}
-
-.unadjusted_goodness_interpretation <- function(component) {
-  switch(
-    component,
-    "group.only" = "Distance variation explained by the tested group.",
-    "full" = "Distance variation explained by the full model; this equals group.only because no adjustment formula was supplied.",
-    "semi.partial" = "Additional fraction of total distance variation explained by the tested group; this equals group.only because no adjustment formula was supplied.",
-    "partial" = "Fraction of residual distance variation explained by the tested group; this equals group.only because no adjustment formula was supplied.",
-    "Distance variation explained by the requested component."
-  )
 }
 
 .format_estimate_name <- function(name,
