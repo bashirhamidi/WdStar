@@ -14,7 +14,7 @@ test_that("printing keeps effect sizes on one line without changing results", {
     expect_identical(returned, original)
     expect_identical(x, original)
     for (label in WdStar:::.wdstest_goodness_labels(x)) {
-      expect_true(any(grepl(tolower(label), tolower(output), fixed = TRUE)))
+      expect_true(any(grepl(tolower(label), tolower(paste(trimws(output), collapse = " ")), fixed = TRUE)))
     }
   }
 })

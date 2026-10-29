@@ -1,5 +1,9 @@
 # WdStar 2.5.3
 
+* Moved pseudo-R-squared to the goodness-of-fit print heading and shortened
+  component labels. Adjusted semi-partial and partial labels now specify their
+  total and adjustment-residual reference variation.
+
 * Clarified the pseudo-R-squared and WdS-derived omega-squared definitions and
   equations. Printed results now separate parameters, WdS, p-value, effect size
   estimate, and goodness-of-fit; show the grouping label (up to 30 characters);
