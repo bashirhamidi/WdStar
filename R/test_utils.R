@@ -583,7 +583,8 @@ print.wdstest <- function(x, digits = 4, ...) {
   number <- function(value) format(unname(value), digits = digits, trim = TRUE)
 
   cat("\n")
-  write_line(x$method)
+  # Match the traditional htest heading indentation.
+  cat(strwrap(x$method, width = width, prefix = "\t"), sep = "\n")
   cat("\n")
   description <- if (is.null(x$data.info)) x$data.name else
     .wdstest_data_description(x$data.info, truncate = TRUE)
