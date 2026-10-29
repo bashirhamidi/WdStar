@@ -378,12 +378,12 @@ test_that("WdS.test reports auto goodness of fit for adjusted and unadjusted tes
     "semi.partial"
   )
   expect_equal(
-    adjusted_result$goodness.components$formula[
+    adjusted_result$goodness.components$model[
       adjusted_result$goodness.components$component == "full"
     ],
-    "~ adjustment + group"
+    "~ adjustment + factor_var"
   )
-  expect_equal(adjusted_result$distance.diagnostics$role, c("adjustment", "full"))
+  expect_equal(adjusted_result$distance.diagnostics$component, c("adjustment.only", "full"))
   expect_false("eigenvalues" %in% names(adjusted_result$distance.diagnostics))
 })
 
@@ -475,16 +475,16 @@ test_that("WdS.test collects distance diagnostics separately from goodness compo
     goodness = "none"
   )
 
-  expect_equal(adjustment_result$distance.diagnostics$role, "adjustment")
+  expect_equal(adjustment_result$distance.diagnostics$component, "adjustment.only")
   expect_equal(
-    all_result$distance.diagnostics$role,
-    c("adjustment", "group.only", "full")
+    all_result$distance.diagnostics$component,
+    c("group.only", "adjustment.only", "full")
   )
   expect_true("eigenvalues" %in% names(all_result$distance.diagnostics))
   expect_length(all_result$distance.diagnostics$eigenvalues[[1]], n_rows)
   expect_null(no_diagnostics_result$distance.diagnostics)
-  expect_equal(pre_adjusted_result$distance.diagnostics$role, "input")
-  expect_equal(pre_adjusted_result$distance.diagnostics$formula, "~adjustment")
+  expect_equal(pre_adjusted_result$distance.diagnostics$component, "input")
+  expect_equal(pre_adjusted_result$distance.diagnostics$model, "~ adjustment")
 })
 
 test_that("WdS.test goodness formula construction preserves no-intercept formulas", {

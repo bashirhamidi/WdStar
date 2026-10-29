@@ -1,5 +1,11 @@
 # WdStar 2.5.3
 
+* Standardized goodness-of-fit and distance-diagnostic tables on `component`
+  and `model`, using actual grouping labels. Removed the interpretation column
+  in favor of consistent documented definitions; model notation identifies
+  total and residual denominators. Numerical results and printed summaries are
+  unchanged. Diagnostic components now share goodness-of-fit names and order.
+
 * Moved pseudo-R-squared to the goodness-of-fit print heading and shortened
   component labels. Adjusted semi-partial and partial labels now specify their
   total and adjustment-residual reference variation.

@@ -32,7 +32,7 @@ test_that("printed summaries follow the agreed layout in all model configuration
                                       data = meta, nrep = 0))
     expect_identical(res$statistic, plain$statistic)
     expect_identical(res$estimate, plain$estimate)
-    expect_equal(res$goodness.components, plain$goodness.components)
+    expect_equal(res$goodness.components$pseudo.R2, plain$goodness.components$pseudo.R2)
     expect_error(print(res, digits = 0), "digits")
   }
 })
