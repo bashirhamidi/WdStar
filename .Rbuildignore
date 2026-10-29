@@ -23,6 +23,7 @@
 
 ^\.positai$
 ^\.posit$
+^\.posit/assistant$
 ^\.git$
 ^\.gitattributes$
 ^\.github$
