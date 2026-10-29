@@ -2,7 +2,7 @@
 % Please edit documentation in R/posthoc_utils.R
 \name{Tw2.posthoc.tests}
 \alias{Tw2.posthoc.tests}
-\title{Perform Pairwise Post Hoc Tests for the \eqn{T_w^2} Statistic}
+\title{Perform Pairwise Post Hoc Tests for the Tw2 Statistic}
 \usage{
 Tw2.posthoc.tests(dm, f, nrep = 999)
 }

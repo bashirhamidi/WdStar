@@ -82,9 +82,11 @@ extra memory use in large analyses and simulations.}
 A list containing:
 \itemize{
   \item \code{method}: name of the method used.
-  \item \code{data.name}: a string describing the input data.
+  \item \code{data.name}: a string describing the input data with the full group label.
+  \item \code{data.info}: distance method, observation count, full group label,
+  and number of group levels, used to format the data description.
   \item \code{statistic}: observed WdS test statistic.
-  \item \code{estimate}: effect size estimator of variance, omega-squared (\eqn{\omega^2}{\omega^2}).
+  \item \code{estimate}: omega-squared effect size estimate calculated from WdS (see Details).
   \item \code{goodness.of.fit}: requested/default distance-based
   pseudo-\eqn{R^2} component.
   \item \code{goodness.components}: data frame of the goodness-of-fit
@@ -168,6 +170,32 @@ formula is supplied, no residual distance matrix is constructed and
 \code{distance.diagnostics} is \code{NULL}, unless the input \code{dm}
 already carries diagnostics from a previous \code{a.dist()} call. In that
 case, the input diagnostics are preserved with role \code{"input"}.
+
+For original distances \eqn{D} and model-residual distances \eqn{D_{res}},
+the basic goodness-of-fit measure is
+\deqn{R^2_D = 1 - \frac{\sum_{i<j} d_{res,ij}^2}{\sum_{i<j} d_{ij}^2}.}
+For univariate Euclidean distances and the corresponding least-squares model
+with an intercept, this equals ordinary regression R-squared when numerical
+eigenvalue truncation does not alter the residual reconstruction. The identity
+\eqn{\sum_{i<j}(y_i-y_j)^2 = N\sum_i(y_i-\bar y)^2} links the two formulas.
+For multivariate Euclidean data the analogous total sums squared variation
+across response dimensions. Covariate adjustment is not the degrees-of-freedom
+correction used in ordinary adjusted R-squared.
+
+The effect size omega-squared is estimated from the observed WdS statistic:
+\deqn{\widehat{\omega}^2 =
+\frac{(k-1)(W_d^*-1)}{(k-1)(W_d^*-1)+N},}
+where \eqn{k} is the number of tested group levels and \eqn{N} the sample size.
+This is the ordinary one-way ANOVA omega-squared transformation with WdS
+substituted for the classical F statistic. In ordinary ANOVA the equivalent
+sums-of-squares expression is
+\eqn{[SS_{between}-(k-1)MS_{within}]/[SS_{total}+MS_{within}]}.
+In adjusted tests WdS is calculated on the adjustment-residual distances.
+
+Printed output shows parameters, WdS, p-value, effect size estimate, and
+selected goodness-of-fit components, in that order. The tested group label is
+limited to 30 characters for display; full labels are retained in the result.
+Variable names and conventional mathematical notation preserve their case.
 
 Selected values in \code{goodness.of.fit} are printed in the requested order.
 The \code{goodness.components} table includes all calculated components,

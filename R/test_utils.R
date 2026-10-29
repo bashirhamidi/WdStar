@@ -93,7 +93,7 @@ generic.distance.permutation.test =
     list(p.value = p.value, statistic = statistic, nrep=nrep)
   }
 
-#' Conduct a \eqn{T_w^2} Distance-Based Permutation Test
+#' Conduct a Tw2 Distance-Based Permutation Test
 #'
 #' This function is a specialized version of
 #' \code{\link{generic.distance.permutation.test}} that uses the
@@ -197,6 +197,32 @@ Tw2.test <- function(dm, f, nrep = 999) {
 #' already carries diagnostics from a previous \code{a.dist()} call. In that
 #' case, the input diagnostics are preserved with role \code{"input"}.
 #'
+#' For original distances \eqn{D} and model-residual distances \eqn{D_{res}},
+#' the basic goodness-of-fit measure is
+#' \deqn{R^2_D = 1 - \frac{\sum_{i<j} d_{res,ij}^2}{\sum_{i<j} d_{ij}^2}.}
+#' For univariate Euclidean distances and the corresponding least-squares model
+#' with an intercept, this equals ordinary regression R-squared when numerical
+#' eigenvalue truncation does not alter the residual reconstruction. The identity
+#' \eqn{\sum_{i<j}(y_i-y_j)^2 = N\sum_i(y_i-\bar y)^2} links the two formulas.
+#' For multivariate Euclidean data the analogous total sums squared variation
+#' across response dimensions. Covariate adjustment is not the degrees-of-freedom
+#' correction used in ordinary adjusted R-squared.
+#'
+#' The effect size omega-squared is estimated from the observed WdS statistic:
+#' \deqn{\widehat{\omega}^2 =
+#' \frac{(k-1)(W_d^*-1)}{(k-1)(W_d^*-1)+N},}
+#' where \eqn{k} is the number of tested group levels and \eqn{N} the sample size.
+#' This is the ordinary one-way ANOVA omega-squared transformation with WdS
+#' substituted for the classical F statistic. In ordinary ANOVA the equivalent
+#' sums-of-squares expression is
+#' \eqn{[SS_{between}-(k-1)MS_{within}]/[SS_{total}+MS_{within}]}.
+#' In adjusted tests WdS is calculated on the adjustment-residual distances.
+#'
+#' Printed output shows parameters, WdS, p-value, effect size estimate, and
+#' selected goodness-of-fit components, in that order. The tested group label is
+#' limited to 30 characters for display; full labels are retained in the result.
+#' Variable names and conventional mathematical notation preserve their case.
+#'
 #' Selected values in \code{goodness.of.fit} are printed in the requested order.
 #' The \code{goodness.components} table includes all calculated components,
 #' including intermediate quantities; its \code{displayed} column identifies
@@ -295,9 +321,11 @@ Tw2.test <- function(dm, f, nrep = 999) {
 #' @return A list containing:
 #' \itemize{
 #'   \item \code{method}: name of the method used.
-#'   \item \code{data.name}: a string describing the input data.
+#'   \item \code{data.name}: a string describing the input data with the full group label.
+#'   \item \code{data.info}: distance method, observation count, full group label,
+#'   and number of group levels, used to format the data description.
 #'   \item \code{statistic}: observed WdS test statistic.
-#'   \item \code{estimate}: effect size estimator of variance, omega-squared (\eqn{\omega^2}{\omega^2}).
+#'   \item \code{estimate}: omega-squared effect size estimate calculated from WdS (see Details).
 #'   \item \code{goodness.of.fit}: requested/default distance-based
 #'   pseudo-\eqn{R^2} component.
 #'   \item \code{goodness.components}: data frame of the goodness-of-fit
@@ -480,35 +508,21 @@ WdS.test <- function(dm, group, nrep=999, strata=NULL, adjustment=NULL, data=NUL
   }
   test.results <- generic.distance.permutation.test(WdS, dm=dm, f=group, nrep=nrep, strata=strata)
 
-    # Name of the hypothesis test
-  if((!is.null(adjustment) && !is.null(strata))) {
-    method <- "Stratified-Adjusted Distance-based Multivariate Welch ANOVA"
-    adjustment_formula <- paste(deparse(adjustment), collapse = "")
-    } else if(!is.null(adjustment)) {
-      method <- "Adjusted Distance-based Multivariate Welch ANOVA"
-      adjustment_formula <- paste(deparse(adjustment), collapse = "")
-      } else if(!is.null(strata)) {
-        method <- "Stratified Distance-based Multivariate Welch ANOVA"
-        adjustment_formula <- NULL
-        } else {
-          method <- "Distance-based Multivariate Welch ANOVA"
-          adjustment_formula <- NULL
-          }
-
-  # Strata information
-  if(!is.null(strata)){
-    strata_selected <- "\n\tStratification affects only the p-value (not WdS statistic, \u03C9\u00B2, and R\u00B2)."}
-    else {strata_selected <- NULL}
-
-  # Description of the data
-  data.name <- paste0(attr(dm, "method"), " distance matrix with ", attr(dm, "Size"), " observations and grouping factor with ", nlevels(group), " levels", strata_selected)
-
-  # Value of the parameter under the null hypothesis
-  # null.value <- 0
-  # attr(null.value, "names") <- "expected WdS under H0"
-
-  # Direction of the alternative hypothesis relative to the null value
-  # alternative <- "two.sided"
+  # Store full labels; shortening and wrapping belong only to the printer.
+  method <- paste0(
+    if (has_adjustment && !is.null(strata)) "Adjusted and stratified " else
+      if (has_adjustment) "Adjusted " else if (!is.null(strata)) "Stratified " else "",
+    if (has_adjustment || !is.null(strata)) "distance-based" else "Distance-based",
+    " multivariate Welch ANOVA"
+  )
+  adjustment_formula <- if (has_adjustment) paste(deparse(adjustment), collapse = "") else NULL
+  data.info <- list(
+    distance = if (is.null(attr(original_dm, "method"))) "Distance matrix" else attr(original_dm, "method"),
+    observations = attr(original_dm, "Size"),
+    group = args$group_label,
+    levels = nlevels(group)
+  )
+  data.name <- .wdstest_data_description(data.info)
 
   # Statistic value
   statistic <- test.results$statistic
@@ -536,7 +550,7 @@ WdS.test <- function(dm, group, nrep=999, strata=NULL, adjustment=NULL, data=NUL
   p.value <- test.results$p.value
 
   # Creating object of class 'htest'
-  TEST <- list(method = method, data.name = data.name, # null.value = null.value, # alternative = alternative,
+  TEST <- list(method = method, data.name = data.name, data.info = data.info, # null.value = null.value, # alternative = alternative,
                statistic = statistic, p.value = p.value,
                estimate = estimate,
                goodness.of.fit = goodness$goodness.of.fit,
@@ -557,44 +571,90 @@ WdS.test <- function(dm, group, nrep=999, strata=NULL, adjustment=NULL, data=NUL
 }
 
 #' @export
-print.wdstest <- function(x, ...) {
-  # Standard htest prints estimate name and computed result in different lines.
-  # Print the label and value together while preserving the stored result.
-  # Print the standard htest output without its sample-estimates block.
-  # Modify a separate copy so the returned object retains its estimate.
-  display <- x
-  display$estimate <- NULL
-  print_htest <- utils::getS3method("print", "htest")
-  print_htest(display, ...)
+print.wdstest <- function(x, digits = 4, ...) {
+  # Own the layout instead of relying on print.htest()'s combined summary line.
+  # Formatting operates on labels and copies, never on the stored result.
+  if (!is.numeric(digits) || length(digits) != 1L || !is.finite(digits) ||
+      digits < 1 || digits > 22 || digits != floor(digits)) {
+    stop("'digits' must be an integer between 1 and 22.", call. = FALSE)
+  }
+  width <- max(20L, getOption("width", 80L))
+  write_line <- function(text) cat(strwrap(text, width = width, exdent = 2L), sep = "\n")
+  number <- function(value) format(unname(value), digits = digits, trim = TRUE)
 
-  # Print omega-squared with its label and value on the same line.
-  if (!is.null(x$estimate)) {
-    estimate_names <- .format_estimate_name(names(x$estimate))
-    for (i in seq_along(x$estimate)) {
-      cat(
-        estimate_names[[i]], " = ",
-        format(unname(x$estimate[[i]]), digits = 4),
-        "\n",
-        sep = "")
-      }
-    }
-  # htest printing does not know about WdStar's goodness fields, so print them
-  # after the standard htest block while keeping estimate reserved for omega2.
-  if (!is.null(x$goodness.of.fit)) {
-    goodness_names <- .format_r2_name(names(x$goodness.of.fit))
-    if (length(x$goodness.of.fit) == 1) {
-      cat(goodness_names, " = ", format(unname(x$goodness.of.fit), digits = 4), "\n", sep = "")
+  cat("\n")
+  write_line(x$method)
+  cat("\n")
+  description <- if (is.null(x$data.info)) x$data.name else
+    .wdstest_data_description(x$data.info, truncate = TRUE)
+  write_line(paste0("Data: ", description))
+
+  if (length(x$parameter)) {
+    # Show the formula without the historical term-count suffix; retain the
+    # underlying parameter vector for programmatic access and htest tools.
+    labels <- names(x$parameter)
+    values <- as.character(x$parameter)
+    values[labels == "adjustment"] <- sub(" with [0-9]+ terms$", "", values[labels == "adjustment"])
+    labels[labels == "number of permutations"] <- "permutations"
+    order <- order(match(labels, c("adjustment", "strata", "dfb", "permutations")))
+    write_line(paste0("Parameters: ", paste(paste0(labels[order], " = ", values[order]), collapse = ", ")))
+  }
+  if ("strata" %in% names(x$parameter)) {
+    note <- "Stratification affects only the p-value (not WdS, \u03C9\u00B2, or R\u00B2)."
+    write_line(.format_r2_name(.format_estimate_name(note)))
+  }
+  if (length(x$statistic)) write_line(paste0("WdS = ", number(x$statistic)))
+  if (length(x$p.value)) {
+    value <- format.pval(x$p.value, digits = digits)
+    write_line(paste0("P-value ", if (startsWith(value, "<")) value else paste0("= ", value)))
+  }
+  if (length(x$estimate)) {
+    label <- .format_estimate_name("Effect size estimate (\u03C9\u00B2)")
+    write_line(paste0(label, " = ", number(x$estimate)))
+  }
+  if (length(x$goodness.of.fit)) {
+    labels <- .wdstest_goodness_labels(x)
+    if (length(labels) == 1L) {
+      write_line(paste0("Goodness-of-fit: ", labels, " = ", number(x$goodness.of.fit)))
     } else {
-      cat("goodness-of-fit:\n")
-      for (i in seq_along(x$goodness.of.fit)) {
-        cat("  ", goodness_names[[i]], " = ",
-            format(unname(x$goodness.of.fit[[i]]), digits = 4),
-            "\n",
-            sep = "")
+      cat("Goodness-of-fit:\n")
+      for (i in seq_along(labels)) {
+        label <- paste0(toupper(substr(labels[i], 1L, 1L)), substring(labels[i], 2L))
+        cat(paste0("  ", strwrap(paste0(label, " = ", number(x$goodness.of.fit[i])),
+                                 width = width - 2L, exdent = 2L)), sep = "\n")
       }
     }
   }
   invisible(x)
+}
+
+.wdstest_data_description <- function(info, truncate = FALSE) {
+  label <- info$group
+  if (truncate && nchar(label, type = "chars") > 30L) {
+    label <- paste0(substr(label, 1L, 27L), "...")
+  }
+  distance <- info$distance
+  # phyloseq/vegan label Bray-Curtis distances as 'bray'.
+  if (tolower(distance) == "bray") distance <- "Bray-Curtis"
+  distance <- if (identical(distance, "Distance matrix")) distance else paste(distance, "distances")
+  paste0(distance, ", ", info$observations, " observations, ", label,
+         " (", info$levels, " levels)")
+}
+
+.wdstest_goodness_labels <- function(x) {
+  components <- c("group.only", "adjustment.only", "full", "semi.partial", "partial")
+  adjusted <- "adjustment" %in% names(x$parameter)
+  # Match stored names to component IDs, preserving explicit selection order.
+  ids <- components[match(names(x$goodness.of.fit),
+                          .goodness_component_label(components, adjusted))]
+  labels <- c("group-only pseudo-R\u00B2", "adjustment-only pseudo-R\u00B2",
+              "full-model pseudo-R\u00B2", "semi-partial pseudo-R\u00B2",
+              "partial pseudo-R\u00B2")[match(ids, components)]
+  if (adjusted) labels[ids %in% c("semi.partial", "partial")] <-
+    paste0(labels[ids %in% c("semi.partial", "partial")], " (group | adjustment)")
+  # Unknown labels from externally constructed objects remain printable.
+  labels[is.na(labels)] <- names(x$goodness.of.fit)[is.na(labels)]
+  .format_r2_name(labels)
 }
 
 .resolve_wdstest_arguments <- function(group, strata, adjustment, data, dots,
@@ -685,6 +745,7 @@ print.wdstest <- function(x, ...) {
 
   list(
     group = group_value,
+    group_label = group_resolved$label,
     strata = strata_value,
     strata_label = strata_label,
     adjustment = adjustment,
