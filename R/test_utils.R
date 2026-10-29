@@ -1236,9 +1236,35 @@ print.wdstest <- function(x, digits = 4, ...) {
   diagnostics
 }
 
+# Combine a list of distance diagnostics data frames into one, removing NULLs and
+#  aligning the optional eigenvalues column. The resulting data frame is sorted
+#  by component in the order input, group.only, adjustment.only, full.
+# If using a.dist(..., keep.eigenvalues = TRUE), the eigenvalues column will
+#  contain lists of numeric vectors. The eigenvalues column will be NULL if
+#  keep.eigenvalues = FALSE. This results in a list column of NULLs, which is
+#  still a valid data frame column.
+
 .combine_distance_diagnostics <- function(diagnostics) {
   diagnostics <- Filter(Negate(is.null), diagnostics)
   if (length(diagnostics) == 0) return(NULL)
+  # Inherited and newly computed diagnostics can differ in whether raw
+  # eigenvalues were saved. Align the optional list column before binding.
+  if (any(                   # Check whether at least one table has that column
+    vapply(diagnostics,      # Check each table for an eigenvalues column
+           function(x) "eigenvalues" %in% names(x), #
+           logical(1)))) {   # Specifies that each check must return a single logical value
+    # If the eigenvalues column is missing from any table, add it as a list column of NULLs.
+    diagnostics <- lapply(diagnostics, function(x) {
+      if (!"eigenvalues" %in% names(x)) {
+        x$eigenvalues <-
+          I(                 # Keeps those entries together as a list col inside data.frame
+            rep(             # Creates one entry per diagnostic row
+              list(NULL),    # Creates one empty list entry
+                nrow(x)))    # x returns the updated table to lapply()
+      }
+      x
+    })
+  }
   combined <- do.call(rbind, diagnostics)
   # Inherited input diagnostics precede newly constructed model components.
   component_order <- c("input", "group.only", "adjustment.only", "full")
