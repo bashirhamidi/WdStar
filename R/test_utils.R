@@ -615,15 +615,11 @@ print.wdstest <- function(x, digits = 4, ...) {
   }
   if (length(x$goodness.of.fit)) {
     labels <- .wdstest_goodness_labels(x)
-    if (length(labels) == 1L) {
-      write_line(paste0("Goodness-of-fit: ", labels, " = ", number(x$goodness.of.fit)))
-    } else {
-      cat("Goodness-of-fit:\n")
-      for (i in seq_along(labels)) {
-        label <- paste0(toupper(substr(labels[i], 1L, 1L)), substring(labels[i], 2L))
-        cat(paste0("  ", strwrap(paste0(label, " = ", number(x$goodness.of.fit[i])),
-                                 width = width - 2L, exdent = 2L)), sep = "\n")
-      }
+    cat(.format_r2_name("Goodness-of-fit (pseudo-R\u00B2):"), "\n", sep = "")
+    for (i in seq_along(labels)) {
+      label <- paste0(toupper(substr(labels[i], 1L, 1L)), substring(labels[i], 2L))
+      cat(paste0("  ", strwrap(paste0(label, " = ", number(x$goodness.of.fit[i])),
+                               width = width - 2L, exdent = 2L)), sep = "\n")
     }
   }
   invisible(x)
@@ -648,11 +644,13 @@ print.wdstest <- function(x, digits = 4, ...) {
   # Match stored names to component IDs, preserving explicit selection order.
   ids <- components[match(names(x$goodness.of.fit),
                           .goodness_component_label(components, adjusted))]
-  labels <- c("group-only pseudo-R\u00B2", "adjustment-only pseudo-R\u00B2",
-              "full-model pseudo-R\u00B2", "semi-partial pseudo-R\u00B2",
-              "partial pseudo-R\u00B2")[match(ids, components)]
-  if (adjusted) labels[ids %in% c("semi.partial", "partial")] <-
-    paste0(labels[ids %in% c("semi.partial", "partial")], " (group | adjustment)")
+  labels <- c("group-only", "adjustment-only", "full-model", "semi-partial", "partial")[match(ids, components)]
+  if (adjusted) {
+    labels[which(ids == "semi.partial")] <-
+      "semi-partial (group | adjustment; relative to total)"
+    labels[which(ids == "partial")] <-
+      "partial (group | adjustment; relative to adjustment residual)"
+  }
   # Unknown labels from externally constructed objects remain printable.
   labels[is.na(labels)] <- names(x$goodness.of.fit)[is.na(labels)]
   .format_r2_name(labels)

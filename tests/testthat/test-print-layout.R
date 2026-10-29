@@ -13,7 +13,7 @@ test_that("printed summaries follow the agreed layout in all model configuration
     before <- res
     output <- capture.output(returned <- print(res))
     positions <- vapply(c("Data:", "Parameters:", "WdS =", "P-value ",
-                         "Effect size estimate", "Goodness-of-fit:"),
+                         "Effect size estimate", "Goodness-of-fit (pseudo-R\u00B2):"),
       function(prefix) which(startsWith(output, prefix))[1], integer(1))
     expect_false(anyNA(positions))
     expect_true(all(diff(positions) > 0))
@@ -60,9 +60,9 @@ test_that("multiple goodness components preserve default and requested ordering"
     output <- capture.output(print(res))
     labels <- WdStar:::.wdstest_goodness_labels(res)
     positions <- vapply(labels, function(label)
-      which(startsWith(tolower(trimws(output)), tolower(label)))[1], integer(1))
+      which(startsWith(tolower(trimws(output)), tolower(substr(label, 1, 15))))[1], integer(1))
     expect_true(all(diff(positions) > 0))
-    expect_true(any(output == "Goodness-of-fit:"))
+    expect_true(any(output == "Goodness-of-fit (pseudo-R\u00B2):"))
     expect_false(any(grepl("Pseudo-R", output, fixed = TRUE)))
   }
 })
